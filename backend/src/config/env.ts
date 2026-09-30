@@ -1,0 +1,41 @@
+import 'dotenv/config';
+import { z } from 'zod';
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().positive().default(4000),
+  DATABASE_URL: z.string().min(1),
+  DIRECT_URL: z.string().min(1),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  FRONTEND_URL: z.url().default('http://localhost:5173'),
+  CORS_ORIGINS: z.string().optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('qwen/qwen3.8-27b'),
+}).superRefine((value, context) => {
+  if (value.NODE_ENV !== 'production') return;
+  const requiredIntegrations = [
+    'CLOUDINARY_CLOUD_NAME',
+    'CLOUDINARY_API_KEY',
+    'CLOUDINARY_API_SECRET',
+    'GROQ_API_KEY',
+  ] as const;
+  for (const key of requiredIntegrations) {
+    if (!value[key])
+      context.addIssue({
+        code: 'custom',
+        path: [key],
+        message: `${key} is required in production`,
+      });
+  }
+});
+
+const parsed = envSchema.safeParse(process.env);
+if (!parsed.success) {
+  console.error('Invalid environment configuration:', z.prettifyError(parsed.error));
+  process.exit(1);
+}
+
+export const env = parsed.data;
