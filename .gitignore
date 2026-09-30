@@ -1,0 +1,17 @@
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+*.log
+.DS_Store
+coverage/
+frontend/.vite/
+backend/prisma/*.db
+backend/uploads/
+backend/test-assets/
