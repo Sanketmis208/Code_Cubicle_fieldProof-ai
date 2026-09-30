@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ResourceType {
+  IMAGE
+  VIDEO
+  RAW
+}
+
+enum AnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  NOT_REQUESTED
+}
+
+enum ReportType {
+  IMPACT_SUMMARY
+  PROJECT_UPDATE
+  DONOR_REPORT
+  CAMPAIGN_BRIEF
+  CUSTOM
+}
+
+model User {
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  passwordHash     String
+  organizationName String?
+  role             String?
+  projects         Project[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  ownerId     String
+  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  location    String?
+  category    String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime
+  endDate     DateTime?
+  coverImage  String?
+  assets      Asset[]
+  comparisons Comparison[]
+  reports     Report[]
+  insight     ProjectInsight?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([ownerId, updatedAt])
+}
+
+model Asset {
+  id                 String         @id @default(cuid())
+  projectId          String
+  project            Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cloudinaryPublicId String         @unique
+  cloudinaryAssetId  String?        @unique
+  resourceType       ResourceType
+  secureUrl          String
+  originalFilename   String
+  width              Int?
+  height             Int?
+  bytes              Int?
+  format             String?
+  capturedAt         DateTime?
+  latitude           Float?
+  longitude          Float?
+  locationName       String?
+  activity           String?
+  description        String?
+  aiStatus           AnalysisStatus @default(NOT_REQUESTED)
+  analysisError      String?
+  analysisAttempts   Int            @default(0)
+  lastAnalyzedAt     DateTime?
+  favorite           Boolean        @default(false)
+  analysis           AssetAnalysis?
+  beforeComparisons  Comparison[]   @relation("BeforeAsset")
+  afterComparisons   Comparison[]   @relation("AfterAsset")
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([projectId, capturedAt])
+  @@index([aiStatus])
+}
+
+model AssetAnalysis {
+  id                   String   @id @default(cuid())
+  assetId              String   @unique
+  asset                Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  summary              String
+  detailedDescription  String?
+  activity             String
+  projectCategoryHints Json?
+  locationType         String?
+  visibleSubjects      Json?
+  environmentalSignals Json
+  infrastructureSignals Json?
+  detectedObjects      Json
+  tags                  Json
+  visualQuality         String?
+  evidenceStrength     String?
+  evidenceUsefulness    String?
+  uncertainties        Json?
+  representativeFrames Json?
+  confidence            Float?
+  analysisVersion       Int      @default(2)
+  rawResponse           Json?
+  model                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model ProjectInsight {
+  id                  String   @id @default(cuid())
+  projectId           String   @unique
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  summary             String
+  documentedActivities Json
+  locationsRepresented Json
+  timeSpan            String
+  recurringObservations Json
+  evidenceGaps        Json
+  recentActivity      String
+  uncertaintyNotes    Json
+  sourceEvidenceCount Int
+  model               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Comparison {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  beforeAssetId String
+  beforeAsset   Asset    @relation("BeforeAsset", fields: [beforeAssetId], references: [id], onDelete: Restrict)
+  afterAssetId  String
+  afterAsset    Asset    @relation("AfterAsset", fields: [afterAssetId], references: [id], onDelete: Restrict)
+  summary       String?
+  changes       Json?
+  confidence    Float?
+  createdAt     DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@unique([beforeAssetId, afterAssetId])
+}
+
+model Report {
+  id         String     @id @default(cuid())
+  projectId  String
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title      String
+  reportType ReportType
+  content    Json
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([projectId, updatedAt])
+}
