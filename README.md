@@ -1,142 +1,385 @@
+<div align="center">
+
 # FieldProof AI
 
-FieldProof AI is an impact and sustainability media-intelligence platform. It turns project photos and videos into organized, searchable, source-traceable evidence, conservative before/after observations, and stakeholder-ready reports.
+**Impact & Sustainability Media-Intelligence Platform**
 
-## Architecture
+*Turn raw field photos and videos into organized, traceable evidence and stakeholder-ready reports — powered by AI.*
 
-- `frontend/` — React 19, TypeScript, Vite, Tailwind CSS, shadcn-style primitives, React Router, TanStack Query, React Hook Form, and Zod.
-- `backend/` — Express 5, TypeScript, Prisma, PostgreSQL, Zod, JWT HttpOnly-cookie authentication, bcrypt, Helmet, CORS, and rate limiting.
-- Cloudinary and Groq integrations are server-only service abstractions. Secrets are never sent to the browser.
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-Authentication uses a seven-day signed JWT in an HttpOnly, SameSite cookie. Every project query includes the authenticated owner's ID. Project deletion cascades to owned assets and reports. Individual assets and comparisons cannot be deleted while a persisted report references them, preserving evidence provenance.
+</div>
 
-## Environment variables
+---
 
-Backend (`backend/.env`):
+## 📋 Table of Contents
 
-- `DATABASE_URL`
-- `DIRECT_URL`
-- `JWT_SECRET`
-- `CLOUDINARY_CLOUD_NAME`
-- `CLOUDINARY_API_KEY`
-- `CLOUDINARY_API_SECRET`
-- `GROQ_API_KEY`
-- `AI_MODEL`
-- `FRONTEND_URL`
-- `CORS_ORIGINS` (optional comma-separated additional trusted frontend origins)
-- `PORT`
-- `NODE_ENV`
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Tech Stack](#-tech-stack)
+- [Architecture](#-architecture)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Variables](#environment-variables)
+- [Running the App](#-running-the-app)
+- [API Reference](#-api-reference)
+- [Intelligence Workflows](#-intelligence-workflows)
+- [Security](#-security)
+- [Quality & Testing](#-quality--testing)
+- [Known Limitations](#-known-limitations)
+- [Demo Guide](#-demo-guide)
 
-Frontend (`frontend/.env`):
+---
 
-- `VITE_API_URL`
+## 🌍 Overview
 
-The current AI provider is Groq. Never place provider secrets in a `VITE_` variable. Production startup requires complete Cloudinary and Groq configuration and fails fast when either integration is missing.
+**FieldProof AI** is a full-stack web platform built for impact-driven organisations, field researchers, and sustainability teams. It ingests project media — photographs and videos captured in the field — and transforms them into:
 
-## Frontend and backend setup
+- **Searchable, structured evidence** with AI-extracted metadata (activity, location, environmental signals, confidence scores)
+- **Before/After visual comparisons** with conservative, uncertainty-aware analysis
+- **Traceable stakeholder reports** that link every claim back to its source media
 
-Requirements: Node.js 20+ and PostgreSQL.
+Every AI output is schema-validated, source-cited, and explicitly constrained to observable visual evidence — no invented measurements, no unsupported causal claims.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---|---|
+| 🔐 **Secure Auth** | 7-day signed JWT in HttpOnly, SameSite cookie; bcrypt password hashing |
+| 📁 **Project Workspaces** | Create and manage field projects; deletion cascades cleanly to all owned assets |
+| 📸 **Media Upload** | Batch upload up to 10 images/videos; MIME + file-signature validation; Cloudinary CDN storage |
+| 🤖 **AI Analysis** | Groq-powered structured multimodal analysis; results persisted and reused on repeat loads |
+| 🎥 **Video Intelligence** | Auto-extracts 3 keyframes (10%, 50%, 90%) and submits as a unified multimodal request |
+| 🔍 **Natural Language Search** | Type a plain-English query; the AI interprets intent and runs deterministic filter matching |
+| 📊 **Before/After Comparison** | Select two assets chronologically; AI generates visible-change analysis with confidence + uncertainty |
+| 📄 **Report Generation** | AI reports built exclusively from persisted evidence; every claim links to a source record |
+| 📅 **Project Timeline** | Browse field progression by date, activity type, or geographic location |
+| ⭐ **Favorites & Filters** | Mark key assets; filter by project, media type, date range, and more |
+
+---
+
+## 🛠 Tech Stack
+
+### Frontend
+| Technology | Purpose |
+|---|---|
+| React 19 + TypeScript | UI framework |
+| Vite | Build tooling & dev server |
+| Tailwind CSS | Utility-first styling |
+| React Router v6 | Client-side routing |
+| TanStack Query | Server-state management & caching |
+| React Hook Form + Zod | Form handling & validation |
+| Axios | HTTP client with auth interceptor |
+
+### Backend
+| Technology | Purpose |
+|---|---|
+| Express 5 + TypeScript | REST API server |
+| Prisma ORM | Type-safe database access |
+| PostgreSQL | Primary relational data store |
+| Cloudinary | Media storage & CDN |
+| Groq SDK | LLM inference (multimodal) |
+| JWT + bcrypt | Authentication & password security |
+| Helmet + CORS + Rate Limiting | Security hardening |
+| Zod | Request validation & AI schema enforcement |
+
+---
+
+## 🏗 Architecture
+
+```
+fieldproof-ai/
+├── frontend/               # React 19 SPA (Vite)
+│   └── src/
+│       ├── api/            # Axios request functions per domain
+│       ├── components/     # Reusable UI components
+│       ├── contexts/       # React Context (Auth)
+│       ├── layouts/        # App shell & Auth shell
+│       ├── pages/          # Route-level page components
+│       ├── types/          # Shared TypeScript interfaces
+│       └── lib/            # Utility helpers (cn, cloudinary)
+│
+└── backend/                # Express 5 REST API
+    └── src/
+        ├── ai/             # Groq prompts & response schemas
+        ├── config/         # Env loader (Zod-validated)
+        ├── controllers/    # Route handler logic
+        ├── middleware/     # Auth, error, upload, rate-limit, validate
+        ├── routes/         # Express router definitions
+        ├── services/       # AI, Auth, Cloudinary service abstractions
+        ├── types/          # Express augmentation (req.user)
+        ├── utils/          # AppError, asyncHandler, report-references
+        └── validators/     # Zod schemas for request bodies
+```
+
+**Data flow:**
+```
+Browser → Vite Dev Server (5173)
+       → Express API (4000) → Prisma → PostgreSQL
+                           → Cloudinary (media storage)
+                           → Groq API  (AI inference)
+```
+
+> Cloudinary and Groq credentials are **server-only**. No secrets are ever sent to the browser.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Node.js** v20 or higher
+- **PostgreSQL** v14 or higher (local or hosted, e.g. Supabase / Neon)
+- A **Cloudinary** account (free tier works)
+- A **Groq** API key
+
+### Installation
 
 ```bash
+# 1. Clone the repository
+git clone https://github.com/Sanketmis208/Code_Cubicle_fieldProof-ai.git
+cd Code_Cubicle_fieldProof-ai
+
+# 2. Copy environment templates
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
-# Configure the variable names listed above. Never commit either .env file.
+
+# 3. Fill in your credentials (see Environment Variables below)
+
+# 4. Install all workspace dependencies
 npm install
+
+# 5. Generate the Prisma client
 npm run prisma:generate
+
+# 6. Run database migrations
 npm run prisma:migrate -w backend
+```
+
+### Environment Variables
+
+#### `backend/.env`
+
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/fieldproof"
+DIRECT_URL="postgresql://user:password@localhost:5432/fieldproof"
+
+# Authentication
+JWT_SECRET="your-strong-random-secret"
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+
+# AI Provider
+GROQ_API_KEY="your-groq-api-key"
+AI_MODEL="meta-llama/llama-4-scout-17b-16e-instruct"
+
+# Server
+PORT=4000
+NODE_ENV=development
+FRONTEND_URL="http://localhost:5173"
+CORS_ORIGINS=""    # Optional: comma-separated additional trusted origins
+```
+
+#### `frontend/.env`
+
+```env
+VITE_API_URL="http://localhost:4000"
+```
+
+> ⚠️ **Never commit `.env` files.** Both are listed in `.gitignore`.
+
+---
+
+## ▶️ Running the App
+
+### Development
+
+```bash
 npm run dev
 ```
 
-The web app runs at `http://localhost:5173`; the API runs at `http://localhost:4000`. `GET /api/health` reports database connectivity and whether optional integrations are configured without exposing credentials.
+This starts both the backend (`http://localhost:4000`) and frontend (`http://localhost:5173`) concurrently.
 
-For a deployed database, apply checked-in migrations non-interactively:
+To start them separately:
 
 ```bash
-cd backend
-npx prisma migrate deploy
+npm run dev -w backend    # API server with ts-node watch
+npm run dev -w frontend   # Vite dev server with HMR
 ```
 
-For production builds:
+### Health Check
+
+```bash
+curl http://localhost:4000/api/health
+# → { "status": "ok", "db": true, "cloudinary": true, "ai": true }
+```
+
+### Production Build
 
 ```bash
 npm ci
 npm run prisma:generate
 npm run build
+
+# Start production API
 NODE_ENV=production npm run start -w backend
+
+# Serve frontend/dist/ via your static host (Vercel, Nginx, etc.)
+# Ensure client-side routing paths fall back to index.html
 ```
 
-Serve `frontend/dist/` through the chosen static host and configure it to route client-side paths to `index.html`.
-
-## Quality commands
+For hosted databases, apply migrations non-interactively:
 
 ```bash
-npm run typecheck
-npm run lint
-npm run build
-npm run prisma:validate
-npm test
-npm run release:smoke # requires the API and configured integrations to be running
+cd backend && npx prisma migrate deploy
 ```
 
-## API surface
+---
 
-- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
-- `GET|POST /api/projects`, `GET|PATCH|DELETE /api/projects/:id`
-- `GET /api/assets`, `POST /api/assets/upload`, `GET|DELETE /api/assets/:id`
-- `PATCH /api/assets/:id/favorite`
-- `POST /api/assets/:id/analyze`
-- `POST /api/assets/:id/retry`, `POST /api/assets/search/interpret`
-- `POST /api/projects/:id/summary`
-- `GET /api/dashboard/summary`
-- `GET|POST /api/comparisons`, `DELETE /api/comparisons/:id`
-- `GET|POST /api/reports`, `GET|DELETE /api/reports/:id`
-- `GET /api/health`
+## 📡 API Reference
 
-## Media intelligence
+All routes are prefixed with `/api`. Protected routes require a valid JWT cookie.
 
-Authenticated users can upload up to ten validated images or videos per request through the API. The backend checks MIME type and file signature, streams each file to Cloudinary, persists source identity and metadata in PostgreSQL, and rolls back the batch if an upload fails. Searchable evidence supports project, media-type, date, favorite, and sort filters. Project deletion also removes its Cloudinary originals before cascading database records.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/auth/register` | ❌ | Create a new account |
+| `POST` | `/auth/login` | ❌ | Authenticate and receive session cookie |
+| `POST` | `/auth/logout` | ✅ | Clear session cookie |
+| `GET` | `/auth/me` | ✅ | Get current authenticated user |
+| `GET` | `/projects` | ✅ | List owned projects |
+| `POST` | `/projects` | ✅ | Create a new project |
+| `GET` | `/projects/:id` | ✅ | Get project details |
+| `PATCH` | `/projects/:id` | ✅ | Update project |
+| `DELETE` | `/projects/:id` | ✅ | Delete project + cascade |
+| `GET` | `/assets` | ✅ | List assets with filters |
+| `POST` | `/assets/upload` | ✅ | Upload up to 10 media files |
+| `GET` | `/assets/:id` | ✅ | Get asset details + AI analysis |
+| `DELETE` | `/assets/:id` | ✅ | Delete asset + Cloudinary original |
+| `PATCH` | `/assets/:id/favorite` | ✅ | Toggle favorite |
+| `POST` | `/assets/:id/analyze` | ✅ | Trigger AI analysis |
+| `POST` | `/assets/:id/retry` | ✅ | Retry failed analysis |
+| `POST` | `/assets/search/interpret` | ✅ | Natural-language evidence search |
+| `GET` | `/comparisons` | ✅ | List comparisons |
+| `POST` | `/comparisons` | ✅ | Create before/after comparison |
+| `DELETE` | `/comparisons/:id` | ✅ | Delete comparison |
+| `GET` | `/reports` | ✅ | List generated reports |
+| `POST` | `/reports` | ✅ | Generate AI report |
+| `GET` | `/reports/:id` | ✅ | Get report with source evidence links |
+| `DELETE` | `/reports/:id` | ✅ | Delete report |
+| `POST` | `/projects/:id/summary` | ✅ | Generate project AI summary |
+| `GET` | `/dashboard/summary` | ✅ | Aggregated dashboard stats |
+| `GET` | `/health` | ❌ | Service + integration health check |
 
-The frontend includes a real-data dashboard, project workspaces, a responsive evidence library with grid/list and batch analysis controls, staged multi-file uploads, Cloudinary-derived thumbnails, and source-traceable evidence detail views.
+---
 
-## Intelligence workflows
+## 🧠 Intelligence Workflows
 
-- Image analysis uses one structured multimodal Groq request, with one correction retry only when schema validation fails.
-- Video analysis derives three Cloudinary frames (10%, 50%, and 90%) and submits them together in one structured multimodal request. It never performs frame-by-frame processing.
-- Natural-language search uses one model request to create a Zod-validated intent. Matching then runs deterministically over persisted project, date, media, location, activity, tag, signal, and analysis metadata.
-- Project summaries use one explicit, user-triggered structured request over stored project metadata and persisted analyses. Results are saved and are not regenerated when the page opens.
-- Before/after analysis sends two user-selected visuals in chronological order and persists visible changes, stable observations, uncertainty, limitations, and confidence.
-- Reports are generated only from stored project metadata, persisted analyses, and saved comparisons. Each report stores the source evidence IDs and exposes direct traceability links.
-- Completed asset analysis is returned from storage unless the user explicitly requests re-analysis. Failures record a safe error and attempt count and can be retried independently of upload.
+All prompts and response schemas are defined in `backend/src/ai/`. The AI is explicitly instructed to:
+- ✅ Describe only what is **visually observable**
+- ✅ Report **uncertainty and limitations** honestly
+- ❌ Never invent measurements, coordinates, or numeric improvements
+- ❌ Never make causal impact claims from visual evidence alone
 
-Prompts and response schemas live in `backend/src/ai/`. They explicitly prohibit scientific measurements, causal impact claims, invented locations, and unsupported numeric improvements from visual evidence. Every machine-consumed response is Zod validated before persistence.
+| Workflow | How it works |
+|---|---|
+| **Image Analysis** | 1 structured multimodal Groq request; 1 automatic retry if schema validation fails |
+| **Video Analysis** | 3 Cloudinary keyframes extracted (10%/50%/90%), submitted in a single request |
+| **NL Search** | AI interprets query into a Zod-validated filter intent; matching runs deterministically over stored metadata |
+| **Project Summary** | 1 user-triggered request over stored project metadata and persisted analyses; result is saved |
+| **Before/After Comparison** | Two assets sent chronologically; AI returns visible changes, confidence, uncertainty, and limitations |
+| **Report Generation** | Built exclusively from stored metadata, persisted analyses, and saved comparisons; each claim links to source evidence |
 
-## Major product workflow
+Completed analysis is returned from storage on repeat loads. Failed analysis records a safe error message and retry count; it can be retried independently of upload.
 
-1. Create an authenticated workspace and project.
-2. Upload signature-validated field images or videos to Cloudinary.
-3. Analyze media explicitly or during upload; persisted results are reused.
-4. Search and filter evidence by metadata or natural language.
-5. Review project progression by date, activity, or location.
-6. Select before/after evidence and generate conservative visible-change analysis.
-7. Generate a report and open its original evidence records.
+---
 
-The empty Projects page also offers an optional, clearly labeled demo-project creator. It creates project metadata only and never fabricates media or AI results.
+## 🔒 Security
 
-## Security and reliability
+| Control | Implementation |
+|---|---|
+| **Authentication** | 7-day signed JWT in HttpOnly + SameSite=Lax cookie; HTTPS enforced in production |
+| **Authorisation** | Every DB query scoped to `req.user.id`; no cross-user data leakage possible |
+| **CORS** | Exact-origin allowlist; configurable via `CORS_ORIGINS` |
+| **Headers** | Helmet sets secure HTTP headers (CSP, HSTS, X-Frame-Options, etc.) |
+| **Rate Limiting** | Separate limits for auth routes, upload routes, and AI inference routes |
+| **Input Validation** | All request bodies validated with Zod before reaching controllers |
+| **Secret isolation** | Provider credentials (Cloudinary, Groq) are server-only; never exposed to the browser |
+| **Passwords** | Stored as bcrypt hashes; never returned in any response |
+| **Cascade integrity** | Report-referenced assets/comparisons are deletion-protected to preserve evidence provenance |
 
-- Seven-day JWT stored in an HTTP-only, SameSite cookie; production cookies require HTTPS.
-- JWT issuer validation, exact-origin CORS, Helmet, authentication rate limiting, and dedicated upload/AI rate limits.
-- Every project, asset, comparison, and report query is scoped to the authenticated owner.
-- Provider credentials and password hashes never appear in frontend responses.
-- Uploads survive analysis failures; analysis state, safe error text, and retry attempts are persisted.
-- Cloudinary public/asset IDs preserve source traceability while PostgreSQL remains canonical application state.
+---
 
-## Known limitations
+## 🧪 Quality & Testing
 
-- AI work runs synchronously. A durable job queue is recommended for high-volume production workloads.
-- Natural-language search evaluates at most 500 owned candidates per request; project timelines/summaries are capped at 250 assets.
-- Comparisons describe visible change; they are not scientific impact assessments.
-- Reports are rendered in the web application and do not yet export to PDF.
-- Cloudinary multi-resource deletion cannot be transactional with PostgreSQL; a provider failure stops project deletion so database traceability is retained.
+```bash
+# Type checking
+npm run typecheck
 
-The next recommended production step is moving analysis into a durable background queue so large batches survive process restarts and can enforce provider-aware concurrency limits.
+# Linting (ESLint)
+npm run lint
+
+# Full build verification
+npm run build
+
+# Prisma schema validation
+npm run prisma:validate
+
+# Unit / integration tests
+npm test
+
+# End-to-end smoke test (requires running API with configured integrations)
+npm run release:smoke
+```
+
+---
+
+## ⚠️ Known Limitations
+
+- **Synchronous AI jobs** — Analysis runs in-process. A durable job queue (e.g. BullMQ) is recommended for high-volume production workloads.
+- **Search scope** — Natural-language search evaluates at most 500 owned assets per request; project timelines/summaries are capped at 250 assets.
+- **Comparisons** — Describe *visible change* only; not a scientific impact assessment.
+- **PDF export** — Reports are rendered in-app; PDF export is not yet implemented.
+- **Cloudinary deletion** — Multi-resource deletion cannot be transactional with PostgreSQL. A Cloudinary provider failure halts project deletion so database traceability is preserved.
+
+**Next recommended production step:** Move analysis into a durable background queue so large batches survive process restarts and can enforce provider-aware concurrency limits.
+
+---
+
+## 🎬 Demo Guide
+
+> Full script in [`DEMO.md`](./DEMO.md) — designed for a **90–120 second** walkthrough.
+
+**Pre-demo checklist:**
+- [ ] PostgreSQL is reachable and all migrations are applied
+- [ ] `GET /api/health` returns `status: ok` with Cloudinary and AI configured
+- [ ] Frontend running at `http://localhost:5173`
+- [ ] Two small, clearly dated sample images prepared for the same project
+
+**Walkthrough (7 steps):**
+
+1. **Dashboard** — Live project, evidence, AI-coverage, comparison and report counts
+2. **Upload** — Drag media into a project; AI analysis runs automatically
+3. **Evidence Intelligence** — AI tags: activity, signals, uncertainty, confidence, traceability
+4. **Natural Language Search** — `"Find tree planting evidence in Jaipur after January 2026"`
+5. **Timeline** — Browse by Month / Activity / Location
+6. **Before & After** — Select two assets; generate visible-change comparison
+7. **Report & Traceability** — Generate an Impact Summary; click any claim to see its source media
+
+---
+
+<div align="center">
+
+Built for **Code Cubicle** · Made with ❤️ by the FieldProof team
+
+</div>
