@@ -176,6 +176,29 @@ describe('cross-organization isolation', () => {
     assert.equal(cloud.uploads.length, uploadsBefore, 'nothing reached Cloudinary');
   });
 
+  it('ignores organization and owner fields smuggled into a project body', async () => {
+    const a = await orgWith('Org A');
+    const b = await orgWith('Org B');
+    const created = await b.owner.post('/projects', projectInput({ organizationId: a.orgId, ownerId: a.owner.user.id }));
+    assert.equal(created.status, 201);
+    const stored = await prisma.project.findUniqueOrThrow({ where: { id: created.body.project.id } });
+    assert.equal(stored.organizationId, b.orgId);
+    assert.equal(stored.ownerId, b.owner.user.id);
+    await b.owner.patch(`/projects/${stored.id}`, { organizationId: a.orgId, ownerId: a.owner.user.id });
+    const after = await prisma.project.findUniqueOrThrow({ where: { id: stored.id } });
+    assert.equal(after.organizationId, b.orgId);
+    assert.equal(after.ownerId, b.owner.user.id);
+  });
+
+  it('refuses an upload whose URL and form name different projects', async () => {
+    const { owner } = await orgWith('Org A');
+    const one = await owner.post('/projects', projectInput({ name: 'One' }));
+    const two = await owner.post('/projects', projectInput({ name: 'Two' }));
+    const result = await owner.post(`/assets/upload?projectId=${one.body.project.id}`, uploadForm(two.body.project.id, [pngFile()]));
+    assert.equal(result.status, 422);
+    assert.equal(cloud.uploads.length, 0);
+  });
+
   it('keeps Cloudinary folders separate per organization', async () => {
     const a = await orgWith('Org A');
     await seedProject(a.owner);
@@ -231,6 +254,9 @@ describe('roles inside one organization', () => {
     assert.equal((await verifier.patch(`/assets/${assets[0]!.id}/favorite`, { favorite: true })).status, 200);
     assert.equal((await verifier.post('/comparisons', { projectId, beforeAssetId: assets[0]!.id, afterAssetId: assets[1]!.id })).status, 201);
     assert.equal((await verifier.del(`/assets/${assets[0]!.id}`)).status, 403);
+    const team = await verifier.get(`/projects/${projectId}/members`);
+    assert.equal(team.status, 200);
+    assert.ok([...team.body.assigned, ...team.body.orgWide].every((entry: any) => entry.user.email === undefined));
   });
 
   it('viewer: reads every project, changes nothing', async () => {

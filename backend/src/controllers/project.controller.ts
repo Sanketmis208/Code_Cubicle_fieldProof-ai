@@ -8,6 +8,7 @@ import {
   actorForProject,
   actorFromRequest,
   assetWhere,
+  can,
   projectWhere,
   requirePermission,
 } from "../authz/actor.js";
@@ -313,11 +314,15 @@ export const listProjectMembers: RequestHandler = async (req, res) => {
       select: { role: true, user: { select: { id: true, name: true, email: true } } },
     }),
   ]);
+  // Email addresses are only shown to people who can already see the member list.
+  const showEmail = can(actor, "org.members.view");
+  const person = (user: { id: string; name: string; email: string }) =>
+    showEmail ? user : { id: user.id, name: user.name };
   res.json({
     assigned: assignments.map(({ user: { memberships, ...user }, createdAt }) => ({
-      user, role: memberships[0]?.role ?? null, assignedAt: createdAt,
+      user: person(user), role: memberships[0]?.role ?? null, assignedAt: createdAt,
     })),
-    orgWide: orgWide.map(({ user, role }) => ({ user, role })),
+    orgWide: orgWide.map(({ user, role }) => ({ user: person(user), role })),
   });
 };
 
