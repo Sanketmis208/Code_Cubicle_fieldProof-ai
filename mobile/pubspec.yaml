@@ -1,0 +1,29 @@
+name: fieldproof_capture
+description: FieldProof live capture. Camera-only, signed on the device, GPS and trusted time recorded at the shutter.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.11.0+2
+  geolocator: ^13.0.1
+  http: ^1.2.2
+  http_parser: ^4.0.2
+  flutter_secure_storage: ^9.2.2
+  cryptography: ^2.7.0
+  crypto: ^3.0.6
+  path_provider: ^2.1.4
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
