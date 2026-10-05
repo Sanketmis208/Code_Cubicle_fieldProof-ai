@@ -15,11 +15,15 @@ export function assertMediaSignature(file: Express.Multer.File) {
   if (!matches) throw new AppError(415, `${file.originalname} does not match its declared media type`);
 }
 
-export const uploadMedia = multer({
+const media = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 10 },
   fileFilter: (_req, file, callback) => {
     if (!allowedTypes.has(file.mimetype)) return callback(new AppError(415, `Unsupported media type: ${file.mimetype}`));
     callback(null, true);
   },
-}).array('files', 10);
+});
+
+export const uploadMedia = media.array('files', 10);
+/** Live capture sends one file per request, so a retry never re-sends a batch. */
+export const uploadMediaSingle = media.array('file', 1);

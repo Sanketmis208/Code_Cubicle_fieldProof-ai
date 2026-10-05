@@ -7,6 +7,7 @@ import { AppError } from "../utils/app-error.js";
 import { reportReferencesComparison } from "../utils/report-references.js";
 import { actorForProject, actorFromRequest, projectWhere } from "../authz/actor.js";
 import { auditService } from "../services/audit.service.js";
+import { distanceMeters } from "../trust/provenance.js";
 
 const assetSelect = {
   id: true,
@@ -18,6 +19,8 @@ const assetSelect = {
   capturedAt: true,
   createdAt: true,
   locationName: true,
+  latitude: true,
+  longitude: true,
   activity: true,
   description: true,
   analysis: true,
@@ -40,6 +43,36 @@ function representativeUrl(asset: {
   const frames = asset.analysis?.representativeFrames;
   if (Array.isArray(frames) && typeof frames[1] === "string") return frames[1];
   return cloudinaryService.videoFrameUrls(asset.cloudinaryPublicId)[1] ?? asset.secureUrl;
+}
+
+/**
+ * How fair is this before/after pair? A light, explainable score: same spot
+ * (GPS distance) and same viewpoint (vision model). Below 50 the comparison is
+ * shown as indicative only.
+ */
+function comparability(
+  before: { latitude: number | null; longitude: number | null },
+  after: { latitude: number | null; longitude: number | null },
+  viewpoint: "same" | "similar" | "different" | undefined,
+) {
+  const factors: Array<{ factor: string; impact: number; note: string }> = [];
+  if (before.latitude !== null && before.longitude !== null && after.latitude !== null && after.longitude !== null) {
+    const meters = Math.round(distanceMeters(before as { latitude: number; longitude: number }, after as { latitude: number; longitude: number }));
+    factors.push(meters <= 15
+      ? { factor: "location", impact: 0, note: `Taken ${meters} m apart` }
+      : meters <= 100
+        ? { factor: "location", impact: -15, note: `Taken ${meters} m apart` }
+        : { factor: "location", impact: -40, note: `Taken ${meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${meters} m`} apart; may not be the same place` });
+  } else factors.push({ factor: "location", impact: -15, note: "GPS missing on at least one image" });
+  factors.push(viewpoint === "same"
+    ? { factor: "viewpoint", impact: 0, note: "Same viewpoint" }
+    : viewpoint === "similar"
+      ? { factor: "viewpoint", impact: -15, note: "Same place, different angle or distance" }
+      : viewpoint === "different"
+        ? { factor: "viewpoint", impact: -45, note: "The images may not show the same place" }
+        : { factor: "viewpoint", impact: -10, note: "Viewpoint could not be judged" });
+  const score = Math.max(0, 100 + factors.reduce((sum, factor) => sum + factor.impact, 0));
+  return { score, indicativeOnly: score < 50, factors };
 }
 
 export const listComparisons: RequestHandler = async (req, res) => {
@@ -108,6 +141,7 @@ export const createComparison: RequestHandler = async (req, res) => {
         uncertainties: result.uncertainties,
         evidenceLimitations: result.evidenceLimitations,
         model: aiService.model,
+        comparability: comparability(before, after, result.viewpointMatch),
       },
       confidence: result.confidence,
     },

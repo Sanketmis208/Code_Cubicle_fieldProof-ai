@@ -8,11 +8,23 @@ import { assetRouter } from './asset.routes.js';
 import { comparisonRouter } from './comparison.routes.js';
 import { reportRouter } from './report.routes.js';
 import { orgRouter } from './org.routes.js';
+import { reviewRouter } from './review.routes.js';
+import { claimsRouter } from './claims.routes.js';
+import { storyRouter } from './story.routes.js';
+import { captureRouter } from './capture.routes.js';
+import { publicPassport } from '../controllers/passport.controller.js';
+import { publicLimiter } from '../middleware/rate-limits.js';
 
 export const apiRouter = Router();
 apiRouter.use('/auth', authRouter);
 apiRouter.get('/dashboard/summary', requireAuth, asyncHandler(dashboardSummary));
 apiRouter.use('/orgs', requireAuth, orgRouter);
+apiRouter.use('/review', requireAuth, reviewRouter);
+apiRouter.use('/claims', requireAuth, claimsRouter);
+apiRouter.use('/story', requireAuth, storyRouter);
+apiRouter.use('/capture', requireAuth, captureRouter);
+// Public, unauthenticated: the passport behind a campaign card's QR code.
+apiRouter.get('/public/passport/:token', publicLimiter, asyncHandler(publicPassport));
 apiRouter.use('/projects', requireAuth, projectRouter);
 apiRouter.use('/assets', requireAuth, assetRouter);
 apiRouter.use('/comparisons', requireAuth, comparisonRouter);

@@ -21,6 +21,7 @@ import {
 } from "../validators/asset.validators.js";
 import { aiLimiter, uploadLimiter } from "../middleware/rate-limits.js";
 import { actorForProject } from "../authz/actor.js";
+import { getPassport, sharePassport, unsharePassport } from "../controllers/passport.controller.js";
 import type { RequestHandler } from "express";
 
 /**
@@ -62,3 +63,6 @@ assetRouter.patch(
   asyncHandler(setFavorite),
 );
 assetRouter.delete("/:id", validate(assetIdSchema), asyncHandler(deleteAsset));
+assetRouter.get("/:id/passport", validate(assetIdSchema), asyncHandler(getPassport));
+assetRouter.post("/:id/share", validate(assetIdSchema), asyncHandler(sharePassport));
+assetRouter.delete("/:id/share", validate(assetIdSchema), asyncHandler(unsharePassport));

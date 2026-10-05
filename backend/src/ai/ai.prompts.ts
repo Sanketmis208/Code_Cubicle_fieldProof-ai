@@ -40,7 +40,8 @@ export function projectInsightPrompt(payload: unknown) {
 
 export const comparisonSystemPrompt = `Compare two chronological field-evidence visuals conservatively.
 The first visual is BEFORE and the second is AFTER. Describe only visible differences and stable observations. Account for viewpoint, lighting, season, image quality, and framing. Never convert visual change into unsupported scientific, causal, or percentage impact claims.
-Return only JSON with exactly: summary, visibleChanges, stableObservations, uncertainties, evidenceLimitations, confidence. confidence is 0 to 1.`;
+Also judge viewpointMatch: "same" if both images show the same spot from nearly the same position and direction, "similar" if the same place from a noticeably different angle or distance, "different" if they may not show the same place.
+Return only JSON with exactly: summary, viewpointMatch, visibleChanges, stableObservations, uncertainties, evidenceLimitations, confidence. confidence is 0 to 1.`;
 
 export function comparisonPrompt(metadata: unknown) {
   return `Compare the two attached evidence visuals using this stored metadata for context only: ${JSON.stringify(metadata)}`;
@@ -48,7 +49,15 @@ export function comparisonPrompt(metadata: unknown) {
 
 export const impactReportSystemPrompt = `Create a concise stakeholder-ready evidence report using only the supplied stored project data, persisted visual analyses, and saved comparisons.
 Clearly distinguish documented metadata from AI visual observations. Never invent measurements, causal impact, beneficiaries, locations, or environmental KPIs. State gaps plainly.
+Every evidence item has a label (E1, E2 ...) and every comparison a label (C1 ...). documentedActivities, visibleObservations and comparisonFindings are arrays of {text, evidence} where evidence lists the labels that directly support that sentence. A sentence with no supporting label must not be written as a finding; put it in evidenceGaps instead. Use only labels you were given.
 Return only JSON with exactly: executiveSummary, documentedActivities, visibleObservations, comparisonFindings, evidenceGaps, methodologyNote.`;
+
+export const claimSystemPrompt = `Turn a donor or field claim into structured search terms for an evidence library. Do not judge whether the claim is true.
+Return only JSON with exactly: activities (short activity phrases such as "tree planting"), locationTerms (place names), dateFrom and dateTo (YYYY-MM-DD or null; a month means its first and last day), quantity ({value, unit} or null, e.g. 500 saplings), keywords (other distinctive words).`;
+
+export function claimPrompt(claim: string, today: string, knownActivities: string[]) {
+  return `Today is ${today}. Activities already recorded in this library: ${JSON.stringify(knownActivities.slice(0, 60))}. Prefer these exact phrases when the claim means the same thing (for example "sapling planting" means "tree planting").\nClaim: ${JSON.stringify(claim)}`;
+}
 
 export function impactReportPrompt(payload: unknown) {
   return `Generate an evidence-grounded report from this JSON snapshot: ${JSON.stringify(payload)}`;

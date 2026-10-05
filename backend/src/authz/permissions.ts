@@ -25,6 +25,7 @@ export const PERMISSIONS = [
   'comparison.delete',
   'report.create',
   'report.delete',
+  'story.create',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -44,6 +45,7 @@ const programManager: Permission[] = [
   'comparison.delete',
   'report.create',
   'report.delete',
+  'story.create',
 ];
 
 export const ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {

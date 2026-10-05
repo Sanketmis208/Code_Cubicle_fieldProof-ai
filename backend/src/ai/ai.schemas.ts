@@ -73,6 +73,8 @@ export const projectInsightSchema = z.object({
 });
 
 export const comparisonAnalysisSchema = z.object({
+  /** Whether both images show the same spot from a similar position; feeds the Comparability Score. */
+  viewpointMatch: z.enum(["same", "similar", "different"]).optional().catch(undefined),
   summary: z.string().trim().min(20).max(1800),
   visibleChanges: z.array(z.string().trim().min(2).max(500)).max(30),
   stableObservations: z.array(z.string().trim().min(2).max(500)).max(30),
@@ -81,13 +83,28 @@ export const comparisonAnalysisSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+/** A report sentence and the evidence labels (E1, E2, C1 …) it rests on. */
+const claim = z.object({
+  text: z.string().trim().min(2).max(500),
+  evidence: z.array(z.string().trim().max(12)).max(12).default([]),
+});
+
 export const impactReportSchema = z.object({
   executiveSummary: z.string().trim().min(20).max(2500),
-  documentedActivities: z.array(z.string().trim().min(2).max(500)).max(40),
-  visibleObservations: z.array(z.string().trim().min(2).max(500)).max(40),
-  comparisonFindings: z.array(z.string().trim().min(2).max(500)).max(40),
-  evidenceGaps: z.array(z.string().trim().min(2).max(500)).max(40),
+  documentedActivities: z.array(claim).max(30),
+  visibleObservations: z.array(claim).max(30),
+  comparisonFindings: z.array(claim).max(30),
+  evidenceGaps: z.array(z.string().trim().min(2).max(500)).max(30),
   methodologyNote: z.string().trim().min(20).max(1500),
+});
+
+export const claimIntentSchema = z.object({
+  activities: z.array(z.string().trim().min(1).max(100)).max(10).default([]),
+  locationTerms: z.array(z.string().trim().min(1).max(120)).max(10).default([]),
+  dateFrom: z.string().date().nullable().default(null),
+  dateTo: z.string().date().nullable().default(null),
+  quantity: z.object({ value: z.number(), unit: z.string().trim().max(60) }).nullable().default(null),
+  keywords: z.array(z.string().trim().min(1).max(60)).max(15).default([]),
 });
 
 export type AssetAnalysisResult = z.infer<typeof assetAnalysisSchema>;
@@ -95,3 +112,4 @@ export type EvidenceSearchIntent = z.infer<typeof evidenceSearchIntentSchema>;
 export type ProjectInsightResult = z.infer<typeof projectInsightSchema>;
 export type ComparisonAnalysisResult = z.infer<typeof comparisonAnalysisSchema>;
 export type ImpactReportResult = z.infer<typeof impactReportSchema>;
+export type ClaimIntent = z.infer<typeof claimIntentSchema>;

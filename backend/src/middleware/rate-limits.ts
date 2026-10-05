@@ -33,3 +33,13 @@ export const inviteJoinLimiter = rateLimit({
   limit: 10,
   message: { error: { message: "Too many invite attempts. Try again in a few minutes." } },
 });
+
+/** Public passport links are unauthenticated; throttle per IP. */
+export const publicLimiter = rateLimit({
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: () => env.NODE_ENV === "test",
+  windowMs: 60 * 1000,
+  limit: 60,
+  message: { error: { message: "Too many requests. Try again in a minute." } },
+});

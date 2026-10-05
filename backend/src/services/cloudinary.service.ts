@@ -78,6 +78,18 @@ export const cloudinaryService = {
     throw lastError;
   },
 
+  /**
+   * Delivery URLs are deterministic transformations of the original, which is
+   * what makes every derived file reproducible (and listable in the passport).
+   */
+  deliveryUrl(publicId: string, resourceType: "image" | "video", transformation: string) {
+    requireConfiguration();
+    return cloudinary.url(publicId, {
+      resource_type: resourceType, type: "upload", secure: true, raw_transformation: transformation,
+      ...(resourceType === "video" ? { format: "jpg" } : {}),
+    });
+  },
+
   /** A JPEG at most 1280 px for the vision model: fixes iPhone HEIC and keeps payloads small. */
   analysisImageUrl(publicId: string) {
     requireConfiguration();

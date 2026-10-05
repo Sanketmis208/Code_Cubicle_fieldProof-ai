@@ -25,6 +25,16 @@ export const login: RequestHandler = async (req, res) => {
   res.cookie('fieldproof_token', authService.token(user.id), cookieOptions).json({ user, memberships });
 };
 
+/**
+ * Mobile clients cannot rely on cookies; they get the same signed session as a
+ * bearer token and keep it in the platform's secure storage.
+ */
+export const token: RequestHandler = async (req, res) => {
+  const user = await authService.login(req.body.email, req.body.password);
+  const memberships = await authService.memberships(user.id);
+  res.json({ token: authService.token(user.id), expiresInDays: 7, user, memberships });
+};
+
 export const me: RequestHandler = async (req, res) => {
   const user = await authService.getUser(req.userId!);
   if (!user) throw new AppError(401, 'User no longer exists');

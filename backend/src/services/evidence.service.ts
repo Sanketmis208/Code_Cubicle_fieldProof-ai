@@ -23,7 +23,15 @@ export type LiveCapture = {
   latitude?: number | null;
   longitude?: number | null;
   accuracyM?: number | null;
-  device?: { signatureValid?: boolean | null; mockLocation?: boolean | null; deviceId?: string | null; platform?: string | null };
+  device?: {
+    signatureValid?: boolean | null;
+    mockLocation?: boolean | null;
+    deviceId?: string | null;
+    platform?: string | null;
+    /** Recorded for retries and support; not used for trust. */
+    clientCaptureId?: string | null;
+    reportedTimeSource?: string | null;
+  };
 };
 
 export type SkippedFile = { filename: string; reason: 'ALREADY_UPLOADED' | 'DUPLICATE_IN_BATCH'; existingAssetId?: string };

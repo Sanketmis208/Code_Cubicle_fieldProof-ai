@@ -98,6 +98,7 @@ model User {
   memberships        Membership[]
   projectAssignments ProjectMember[] @relation("ProjectAssignee")
   uploadedAssets     Asset[]         @relation("AssetUploader")
+  devices            Device[]
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 }
@@ -439,4 +440,22 @@ model Report {
   updatedAt  DateTime   @updatedAt
 
   @@index([projectId, updatedAt])
+}
+
+/// A phone enrolled for live capture. Its Ed25519 public key verifies that a
+/// capture's file and facts were signed on this device and not changed since.
+model Device {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Raw 32-byte Ed25519 public key, base64.
+  publicKey  String
+  platform   String
+  model      String?
+  appVersion String?
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }

@@ -8,6 +8,8 @@ import {
   evidenceSearchIntentSchema,
   impactReportSchema,
   projectInsightSchema,
+  claimIntentSchema,
+  type ClaimIntent,
   type AssetAnalysisResult,
   type ComparisonAnalysisResult,
   type EvidenceSearchIntent,
@@ -26,6 +28,8 @@ import {
   projectInsightPrompt,
   projectInsightSystemPrompt,
   videoAnalysisPrompt,
+  claimPrompt,
+  claimSystemPrompt,
 } from "../ai/ai.prompts.js";
 
 const client = env.GROQ_API_KEY
@@ -230,7 +234,15 @@ export const aiService = {
       impactReportSchema,
       impactReportSystemPrompt,
       impactReportPrompt(snapshot),
-      950,
+      1800,
+    );
+  },
+  parseClaim(claim: string, knownActivities: string[]): Promise<ClaimIntent> {
+    return structuredRequest(
+      claimIntentSchema,
+      claimSystemPrompt,
+      claimPrompt(claim, new Date().toISOString().slice(0, 10), knownActivities),
+      400,
     );
   },
 };

@@ -36,6 +36,8 @@ export const cloud = {
 export const ai = {
   imageUrls: [] as string[],
   nextAuthenticity: undefined as unknown,
+  nextReport: undefined as unknown,
+  nextClaim: undefined as unknown,
 };
 let uploadCounter = 0;
 
@@ -82,6 +84,8 @@ export function installFakes() {
       return { result: 'ok' };
     },
     async applyAnalysisMetadata() {},
+    deliveryUrl: (publicId: string, resourceType: string, transformation: string) =>
+      `https://res.cloudinary.com/demo/${resourceType}/upload/${transformation}/${publicId}${resourceType === 'video' ? '.jpg' : ''}`,
     analysisImageUrl: (publicId: string) => `https://res.cloudinary.com/demo/image/upload/f_jpg,w_1280/${publicId}.jpg`,
     videoFrameUrls: (publicId: string) => [1, 2, 3].map((n) => `https://res.cloudinary.com/demo/video/upload/so_${n}/${publicId}.jpg`),
   });
@@ -109,10 +113,14 @@ export function installFakes() {
       visibleChanges: ['denser vegetation'], stableObservations: ['path'],
       uncertainties: [], evidenceLimitations: [], confidence: 0.6,
     }),
-    generateImpactReport: async () => ({
+    generateImpactReport: async () => ai.nextReport ?? ({
       executiveSummary: 'Stored evidence documents planting activity over the period.',
-      documentedActivities: ['tree planting'], visibleObservations: ['saplings'],
+      documentedActivities: [{ text: 'Tree planting took place', evidence: ['E1'] }],
+      visibleObservations: [{ text: 'Young saplings are visible', evidence: ['E1', 'E2'] }],
       comparisonFindings: [], evidenceGaps: [], methodologyNote: 'Generated from stored evidence for tests only.',
+    }),
+    parseClaim: async () => ai.nextClaim ?? ({
+      activities: ['tree planting'], locationTerms: [], dateFrom: null, dateTo: null, quantity: null, keywords: [],
     }),
   });
 }
@@ -129,6 +137,8 @@ export async function resetDb() {
   cloud.options.length = 0;
   ai.imageUrls.length = 0;
   ai.nextAuthenticity = undefined;
+  ai.nextReport = undefined;
+  ai.nextClaim = undefined;
 }
 
 let server: Server | undefined;
