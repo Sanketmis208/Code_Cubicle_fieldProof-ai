@@ -29,6 +29,34 @@ enum AnalysisStatus {
   NOT_REQUESTED
 }
 
+enum CaptureSource {
+  WEB_UPLOAD
+  WEB_LIVE_CAPTURE
+  APP_CAPTURE
+}
+
+/// Wording matters in the field: nothing is ever called fraud, only "needs a second look".
+enum TrustStatus {
+  NOT_ASSESSED
+  STRONG
+  MODERATE
+  NEEDS_SECOND_LOOK
+}
+
+enum TrustResult {
+  PASS
+  INFO
+  WARN
+  FAIL
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESHOOT_REQUESTED
+}
+
 enum ReportType {
   IMPACT_SUMMARY
   PROJECT_UPDATE
@@ -171,6 +199,8 @@ model Project {
   organizationId String
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   members        ProjectMember[]
+  sites          Site[]
+  eventClusters  EventCluster[]
   name           String
   description    String?
   location       String?
@@ -217,6 +247,38 @@ model Asset {
   uploadedBy         User?          @relation("AssetUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   lastAnalyzedAt     DateTime?
   favorite           Boolean        @default(false)
+  // Trust layer: provenance captured at upload, then explained checks.
+  captureSource      CaptureSource  @default(WEB_UPLOAD)
+  sha256             String?
+  /// 64-bit perceptual hash from Cloudinary (hex).
+  phash              String?
+  /// Parsed from the original bytes on our server, never from display strings.
+  exif               Json?
+  /// Raw upload-time analysis returned by Cloudinary (quality, faces, colors).
+  cloudinaryAnalysis Json?
+  qualityScore       Float?
+  faceCount          Int?
+  /// Where capturedAt came from: EXIF, STAMP, DEVICE, SERVER.
+  capturedAtSource   String?
+  /// Where latitude/longitude came from: EXIF, STAMP, DEVICE.
+  locationSource     String?
+  gpsAccuracyM       Float?
+  /// Free-text "captured by" for a coordinator uploading on behalf of field staff.
+  capturedByName     String?
+  trustScore         Int?
+  trustStatus        TrustStatus    @default(NOT_ASSESSED)
+  trustEvaluatedAt   DateTime?
+  reviewStatus       ReviewStatus   @default(PENDING)
+  reviewedById       String?
+  reviewedAt         DateTime?
+  reviewNote         String?
+  /// Opaque token for the public Evidence Passport; null until shared.
+  publicToken        String?        @unique
+  siteId             String?
+  site               Site?          @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  eventClusterId     String?
+  eventCluster       EventCluster?  @relation(fields: [eventClusterId], references: [id], onDelete: SetNull)
+  trustChecks        TrustCheck[]
   analysis           AssetAnalysis?
   beforeComparisons  Comparison[]   @relation("BeforeAsset")
   afterComparisons   Comparison[]   @relation("AfterAsset")
@@ -226,6 +288,80 @@ model Asset {
   @@index([projectId, createdAt])
   @@index([projectId, capturedAt])
   @@index([aiStatus])
+  @@index([sha256])
+  @@index([projectId, reviewStatus])
+  @@index([eventClusterId])
+}
+
+/// A named place inside a project, checked as centre + radius.
+model Site {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  latitude  Float
+  longitude Float
+  radiusM   Int      @default(500)
+  assets    Asset[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+/// Media captured close together in time and place: "40 photos, 1 event".
+model EventCluster {
+  id                String   @id @default(cuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  startedAt         DateTime
+  endedAt           DateTime
+  latitude          Float?
+  longitude         Float?
+  assetCount        Int      @default(0)
+  /// Up to three best shots, chosen by quality.
+  representativeIds Json     @default("[]")
+  label             String?
+  assets            Asset[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([projectId, startedAt])
+}
+
+/// One explained check behind a Trust Score. Score, badge and passport all read these rows.
+model TrustCheck {
+  id             String      @id @default(cuid())
+  assetId        String
+  asset          Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  check          String
+  result         TrustResult
+  /// Points this check moved the score (negative for penalties).
+  weight         Int         @default(0)
+  hard           Boolean     @default(false)
+  message        String
+  details        Json?
+  relatedAssetId String?
+  createdAt      DateTime    @default(now())
+
+  @@index([assetId])
+}
+
+/// A file generated from evidence (card, poster, blurred copy) and the exact
+/// Cloudinary transformation that produced it, so it can be reproduced.
+model DerivedAsset {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String?
+  sourceAssetIds Json
+  kind           String
+  transformation String
+  url            String
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([projectId])
 }
 
 model AssetAnalysis {
@@ -247,6 +383,8 @@ model AssetAnalysis {
   evidenceUsefulness    String?
   uncertainties         Json?
   representativeFrames  Json?
+  /// Recapture / synthetic likelihood and any burned-in GPS camera stamp read by the vision model.
+  authenticity          Json?
   confidence            Float?
   analysisVersion       Int      @default(2)
   rawResponse           Json?

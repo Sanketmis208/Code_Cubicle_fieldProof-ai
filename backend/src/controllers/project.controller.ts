@@ -13,6 +13,7 @@ import {
   requirePermission,
 } from "../authz/actor.js";
 import { ORG_WIDE_ROLES } from "../authz/permissions.js";
+import { reevaluateProject } from "../trust/service.js";
 
 const projectInclude = {
   _count: { select: { assets: true, comparisons: true, reports: true } },
@@ -218,6 +219,8 @@ export const updateProject: RequestHandler = async (req, res) => {
     data: req.body,
     include: projectInclude,
   });
+  // The project period is part of every capture-time check.
+  if ("startDate" in req.body || "endDate" in req.body) await reevaluateProject(id);
   await auditService.record({
     organizationId: actor.organizationId, actorId: actor.userId, action: "project.updated",
     entityType: "Project", entityId: id, metadata: { fields: Object.keys(req.body) },
@@ -358,6 +361,43 @@ export const removeProjectMember: RequestHandler = async (req, res) => {
   await auditService.record({
     organizationId: actor.organizationId, actorId: actor.userId, action: "project.member_removed",
     entityType: "Project", entityId: projectId, metadata: { userId },
+  });
+  res.status(204).send();
+};
+
+export const listSites: RequestHandler = async (req, res) => {
+  const projectId = req.params.id as string;
+  await actorForProject(req.userId!, projectId);
+  const sites = await prisma.site.findMany({
+    where: { projectId },
+    orderBy: { createdAt: "asc" },
+    include: { _count: { select: { assets: true } } },
+  });
+  res.json({ sites });
+};
+
+/** Sites change what "inside the project area" means, so evidence is re-checked. */
+export const createSite: RequestHandler = async (req, res) => {
+  const projectId = req.params.id as string;
+  const actor = await actorForProject(req.userId!, projectId, "project.edit");
+  const site = await prisma.site.create({ data: { projectId, ...req.body } });
+  const rechecked = await reevaluateProject(projectId);
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "site.created",
+    entityType: "Site", entityId: site.id, metadata: { name: site.name, projectId },
+  });
+  res.status(201).json({ site, rechecked });
+};
+
+export const deleteSite: RequestHandler = async (req, res) => {
+  const projectId = req.params.id as string;
+  const actor = await actorForProject(req.userId!, projectId, "project.edit");
+  const result = await prisma.site.deleteMany({ where: { id: req.params.siteId as string, projectId } });
+  if (!result.count) throw new AppError(404, "Site not found");
+  await reevaluateProject(projectId);
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "site.deleted",
+    entityType: "Site", entityId: req.params.siteId as string, metadata: { projectId },
   });
   res.status(204).send();
 };

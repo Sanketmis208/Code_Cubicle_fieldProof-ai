@@ -10,11 +10,12 @@ import { reportReferencesEvidence } from "../utils/report-references.js";
 import { actorForProject, actorFromRequest, assetWhere, projectWhere } from "../authz/actor.js";
 import type { Permission } from "../authz/permissions.js";
 import { auditService } from "../services/audit.service.js";
+import { evidenceInclude, storeEvidence } from "../services/evidence.service.js";
+import { evaluateAssetTrust, ingestTrust, refreshCluster } from "../trust/service.js";
+import { exifTimeToIso } from "../trust/provenance.js";
+import type { Authenticity } from "../trust/engine.js";
 
-const assetInclude = {
-  project: { select: { id: true, name: true, location: true, category: true } },
-  analysis: true,
-} as const;
+const assetInclude = evidenceInclude;
 
 type ScopedAsset = Prisma.AssetGetPayload<{ include: typeof assetInclude }>;
 
@@ -97,7 +98,11 @@ export const listAssets: RequestHandler = async (req, res) => {
 
 export const getAsset: RequestHandler = async (req, res) => {
   const { asset } = await scopedAsset(req.userId!, req.params.id as string);
-  res.json({ asset });
+  const trustChecks = await prisma.trustCheck.findMany({
+    where: { assetId: asset.id },
+    orderBy: [{ hard: "desc" }, { weight: "asc" }, { check: "asc" }],
+  });
+  res.json({ asset: { ...asset, trustChecks } });
 };
 
 export const setFavorite: RequestHandler = async (req, res) => {
@@ -118,70 +123,9 @@ export const uploadAssets: RequestHandler = async (req, res) => {
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
   if (!files.length) throw new AppError(422, "Select at least one image or video");
   files.forEach(assertMediaSignature);
-
-  const created = [];
-  try {
-    for (const file of files) {
-      const uploaded = await cloudinaryService.uploadBuffer(file.buffer, {
-        folder: `fieldproof/${actor.organizationId}/${projectId}`,
-        context: `project_id=${projectId}|original_filename=${file.originalname.replace(/[=|]/g, " ")}`,
-      });
-      try {
-      const asset = await prisma.asset.create({
-        data: {
-          projectId,
-          uploadedById: actor.userId,
-          cloudinaryPublicId: uploaded.public_id,
-          cloudinaryAssetId: uploaded.asset_id,
-          resourceType:
-            uploaded.resource_type === "video"
-              ? ResourceType.VIDEO
-              : uploaded.resource_type === "raw"
-                ? ResourceType.RAW
-                : ResourceType.IMAGE,
-          secureUrl: uploaded.secure_url,
-          originalFilename: file.originalname,
-          width: uploaded.width,
-          height: uploaded.height,
-          bytes: uploaded.bytes,
-          format: uploaded.format,
-          // Cloudinary's created_at is the upload time, not a trustworthy capture time.
-          // Keep capturedAt null until genuine capture metadata is available.
-          capturedAt: null,
-          aiStatus: AnalysisStatus.NOT_REQUESTED,
-        },
-        include: assetInclude,
-      });
-      created.push(asset);
-      } catch (error) {
-        await cloudinaryService
-          .deleteResource(
-            uploaded.public_id,
-            uploaded.resource_type as "image" | "video" | "raw",
-          )
-          .catch(() => undefined);
-        throw error;
-      }
-    }
-  } catch (error) {
-    for (const asset of created) {
-      await cloudinaryService
-        .deleteResource(
-          asset.cloudinaryPublicId,
-          asset.resourceType.toLowerCase() as "image" | "video" | "raw",
-        )
-        .catch(() => undefined);
-    }
-    if (created.length)
-      await prisma.asset.deleteMany({ where: { id: { in: created.map((asset) => asset.id) } } });
-    throw error;
-  }
-  await auditService.record({
-    organizationId: actor.organizationId, actorId: actor.userId, action: "evidence.uploaded",
-    entityType: "Project", entityId: projectId,
-    metadata: { count: created.length, assetIds: created.map((asset) => asset.id) },
-  });
-  res.status(201).json({ assets: created });
+  const capturedByName = typeof req.body.capturedByName === "string" ? req.body.capturedByName.slice(0, 120) : null;
+  const result = await storeEvidence(actor, projectId, files, { captureSource: "WEB_UPLOAD", capturedByName });
+  res.status(result.assets.length ? 201 : 200).json(result);
 };
 
 export const deleteAsset: RequestHandler = async (req, res) => {
@@ -206,6 +150,7 @@ export const deleteAsset: RequestHandler = async (req, res) => {
       "Delete or regenerate reports that reference this asset before deleting it",
     );
   await prisma.asset.delete({ where: { id: asset.id } });
+  if (asset.eventClusterId) await refreshCluster(asset.eventClusterId);
   await auditService.record({
     organizationId: actor.organizationId, actorId: actor.userId, action: "evidence.deleted",
     entityType: "Asset", entityId: asset.id, metadata: { filename: asset.originalFilename, projectId: asset.projectId },
@@ -213,6 +158,22 @@ export const deleteAsset: RequestHandler = async (req, res) => {
   await cloudinaryService.deleteResources([asset]);
   res.status(204).send();
 };
+
+/**
+ * A GPS-camera stamp printed on the photo fills in time and place only when the
+ * file itself has none (typical for WhatsApp forwards). It is labelled STAMP so
+ * every screen can say "declared by stamp", never "verified".
+ */
+function stampProvenance(asset: ScopedAsset, authenticity: Authenticity | undefined) {
+  const stamp = authenticity?.burnedInStamp;
+  if (!stamp?.present) return {};
+  const fill: Prisma.AssetUpdateInput = {};
+  const stampedAt = stamp.capturedAt ? exifTimeToIso(stamp.capturedAt) : undefined;
+  if (!asset.capturedAt && stampedAt) Object.assign(fill, { capturedAt: new Date(stampedAt), capturedAtSource: "STAMP" });
+  if (asset.latitude === null && stamp.latitude !== null && stamp.longitude !== null)
+    Object.assign(fill, { latitude: stamp.latitude, longitude: stamp.longitude, locationSource: "STAMP" });
+  return fill;
+}
 
 async function persistAnalysis(
   asset: ScopedAsset,
@@ -235,6 +196,7 @@ async function persistAnalysis(
     evidenceUsefulness: result.evidenceUsefulness,
     uncertainties: result.uncertainties,
     representativeFrames,
+    authenticity: (result.authenticity ?? undefined) as Prisma.InputJsonValue | undefined,
     confidence: result.confidence,
     rawResponse: result,
     model: aiService.model,
@@ -253,8 +215,13 @@ async function persistAnalysis(
       description: result.summary,
       analysisError: null,
       lastAnalyzedAt: new Date(),
+      ...stampProvenance(asset, result.authenticity),
     },
   });
+  // The vision model may have added recapture, synthetic or stamp signals.
+  await (asset.capturedAt ? evaluateAssetTrust(asset.id) : ingestTrust(asset.id)).catch((error: unknown) =>
+    console.error("Trust re-evaluation failed:", error instanceof Error ? error.message : error),
+  );
   const metadataTags = [
     ...result.tags,
     ...result.environmentalSignals.map((signal) => signal.type),
@@ -321,7 +288,7 @@ async function processAnalysis(id: string, userId: string, force: boolean) {
     const result =
       asset.resourceType === ResourceType.VIDEO
         ? await aiService.analyzeVideoFrames(representativeFrames)
-        : await aiService.analyzeImage(asset.secureUrl);
+        : await aiService.analyzeImage(cloudinaryService.analysisImageUrl(asset.cloudinaryPublicId));
     return {
       analysis: await persistAnalysis(asset, result, representativeFrames),
       cached: false,

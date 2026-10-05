@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { addProjectMember, createProject, deleteProject, generateProjectInsight, getProject, listProjectMembers, listProjects, removeProjectMember, updateProject } from '../controllers/project.controller.js';
+import { addProjectMember, createProject, createSite, deleteSite, listSites, deleteProject, generateProjectInsight, getProject, listProjectMembers, listProjects, removeProjectMember, updateProject } from '../controllers/project.controller.js';
 import { projectMemberParamsSchema, projectMemberSchema } from '../validators/org.validators.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/async-handler.js';
-import { createProjectSchema, projectIdSchema, updateProjectSchema } from '../validators/project.validators.js';
+import { createProjectSchema, createSiteSchema, projectIdSchema, siteParamsSchema, updateProjectSchema } from '../validators/project.validators.js';
 import { aiLimiter } from '../middleware/rate-limits.js';
 
 export const projectRouter = Router();
@@ -16,3 +16,6 @@ projectRouter.delete('/:id', validate(projectIdSchema), asyncHandler(deleteProje
 projectRouter.get('/:id/members', validate(projectIdSchema), asyncHandler(listProjectMembers));
 projectRouter.post('/:id/members', validate(projectMemberSchema), asyncHandler(addProjectMember));
 projectRouter.delete('/:id/members/:userId', validate(projectMemberParamsSchema), asyncHandler(removeProjectMember));
+projectRouter.get('/:id/sites', validate(projectIdSchema), asyncHandler(listSites));
+projectRouter.post('/:id/sites', validate(createSiteSchema), asyncHandler(createSite));
+projectRouter.delete('/:id/sites/:siteId', validate(siteParamsSchema), asyncHandler(deleteSite));

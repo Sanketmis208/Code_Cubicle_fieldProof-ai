@@ -14,6 +14,10 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default('qwen/qwen3.8-27b'),
+  /** Token budget per minute for the AI provider; calls are paced to stay under it. */
+  AI_TOKENS_PER_MINUTE: z.coerce.number().int().positive().default(7000),
+  /** EXIF times carry no zone; this offset is assumed when the camera did not record one. */
+  EXIF_DEFAULT_UTC_OFFSET: z.string().regex(/^[+-]\d{2}:\d{2}$/).default('+05:30'),
 }).superRefine((value, context) => {
   if (value.NODE_ENV !== 'production') return;
   const requiredIntegrations = [

@@ -53,6 +53,40 @@ export const cloudinaryService = {
     );
   },
 
+  /**
+   * Image upload that also asks Cloudinary for its upload-time analysis
+   * (perceptual hash, focus quality, face boxes). Some analyses depend on the
+   * account plan; if Cloudinary refuses them, the upload is retried with less
+   * rather than failing, and `requested` records what was actually returned.
+   */
+  async uploadWithAnalysis(buffer: Buffer, options: UploadApiOptions, image: boolean) {
+    const attempts: UploadApiOptions[] = image
+      ? [{ phash: true, quality_analysis: true, faces: true }, { phash: true, faces: true }, { phash: true }, {}]
+      : [{}];
+    let lastError: unknown;
+    for (const analysis of attempts) {
+      try {
+        const result = await cloudinaryService.uploadBuffer(buffer, { ...options, ...analysis });
+        return { result, requested: Object.keys(analysis) };
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? '');
+        // Only plan/feature refusals are worth retrying; anything else is a real failure.
+        if (!/quality|phash|faces|analysis|not (enabled|allowed|supported)|plan/i.test(message)) throw error;
+      }
+    }
+    throw lastError;
+  },
+
+  /** A JPEG at most 1280 px for the vision model: fixes iPhone HEIC and keeps payloads small. */
+  analysisImageUrl(publicId: string) {
+    requireConfiguration();
+    return cloudinary.url(publicId, {
+      resource_type: "image", type: "upload", secure: true, format: "jpg",
+      transformation: [{ width: 1280, height: 1280, crop: "limit", quality: "auto" }],
+    });
+  },
+
   uploadBuffer(
     buffer: Buffer,
     options: UploadApiOptions,
@@ -116,16 +150,11 @@ export const cloudinaryService = {
     context: Record<string, string>,
   ) {
     requireConfiguration();
-    await Promise.all(
-      tags.slice(0, 20).map((tag) =>
-        cloudinary.uploader.add_tag(tag, [publicId], {
-          resource_type: resourceType,
-        }),
-      ),
-    );
+    // One call for tags and context together (was one call per tag).
     await cloudinary.uploader.explicit(publicId, {
       type: "upload",
       resource_type: resourceType,
+      tags: tags.slice(0, 20).map((tag) => tag.replace(/,/g, " ").slice(0, 60)),
       context: Object.entries(context)
         .map(([key, value]) => `${key}=${value.replace(/[=|]/g, " ")}`)
         .join("|"),

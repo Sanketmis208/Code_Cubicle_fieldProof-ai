@@ -3,7 +3,12 @@ Describe only what is visually observable. Never invent measurements, causal imp
 Use careful language such as "visible vegetation appears denser" or "waste is visible". Never claim unsupported changes such as biodiversity or pollution improving by a percentage.
 Separate uncertain interpretation into uncertainties and lower confidence accordingly.
 Return only one JSON object with exactly: summary, detailedDescription, activity, projectCategoryHints, locationType, visibleSubjects, environmentalSignals, infrastructureSignals, detectedObjects, tags, evidenceStrength, imageQuality, evidenceUsefulness, uncertainties, confidence.
-environmentalSignals and infrastructureSignals are arrays of {type, description, confidence}. confidence values are 0 to 1. locationType may be null. evidenceStrength is strong, moderate, or limited.`;
+environmentalSignals and infrastructureSignals are arrays of {type, description, confidence}. confidence values are 0 to 1. locationType may be null. evidenceStrength is strong, moderate, or limited.
+Also return "authenticity": {recaptureLikelihood, syntheticLikelihood, burnedInStamp: {present, text, latitude, longitude, capturedAt}, notes}.
+recaptureLikelihood (low|medium|high): is this a photo of a screen, monitor or printed photo rather than of the scene? Look for moire patterns, screen bezels, pixel grids, glare on glass, paper edges, flat depth.
+syntheticLikelihood (low|medium|high): signs of AI generation or compositing such as warped text, impossible geometry, melted hands, inconsistent shadows.
+burnedInStamp: many field workers use GPS camera apps that print coordinates, address, date and time onto the image. If such text is visible, set present true, copy it into text, and parse latitude and longitude as decimal degrees and capturedAt as "YYYY-MM-DD HH:mm" when legible; otherwise use null. Never guess values that are not printed.
+notes: at most three short reasons for any medium or high likelihood.`;
 
 export const imageAnalysisPrompt =
   "Analyze this field-evidence image using the required schema. Treat it as one observation, not proof of project-level impact.";

@@ -26,6 +26,16 @@ export const cloud = {
   /** Extra fields merged into the next upload responses (e.g. phash, metadata). */
   nextResponse: [] as Array<Record<string, unknown>>,
   failUpload: false,
+  /** Simulates an account without quality analysis: uploads asking for it are refused. */
+  rejectQualityAnalysis: false,
+  /** Options of every upload call, including refused attempts. */
+  options: [] as Array<Record<string, unknown>>,
+};
+
+/** What the fake vision model saw and will answer. */
+export const ai = {
+  imageUrls: [] as string[],
+  nextAuthenticity: undefined as unknown,
 };
 let uploadCounter = 0;
 
@@ -50,8 +60,11 @@ export const fakeAnalysis = {
 export function installFakes() {
   Object.assign(cloudinaryService, {
     isConfigured: () => true,
-    async uploadBuffer(buffer: Buffer, options: { folder?: string }) {
+    async uploadBuffer(buffer: Buffer, options: { folder?: string } & Record<string, unknown>) {
+      cloud.options.push(options);
       if (cloud.failUpload) throw new Error('fake cloudinary outage');
+      if (cloud.rejectQualityAnalysis && options.quality_analysis)
+        throw new Error('quality_analysis is not enabled for this account');
       uploadCounter += 1;
       const publicId = `${options.folder ?? 'test'}/file-${uploadCounter}`;
       cloud.uploads.push({ publicId, folder: options.folder, bytes: buffer.length });
@@ -69,11 +82,17 @@ export function installFakes() {
       return { result: 'ok' };
     },
     async applyAnalysisMetadata() {},
+    analysisImageUrl: (publicId: string) => `https://res.cloudinary.com/demo/image/upload/f_jpg,w_1280/${publicId}.jpg`,
     videoFrameUrls: (publicId: string) => [1, 2, 3].map((n) => `https://res.cloudinary.com/demo/video/upload/so_${n}/${publicId}.jpg`),
   });
   Object.assign(aiService, {
     isConfigured: () => true,
-    analyzeImage: async () => fakeAnalysis,
+    analyzeImage: async (url: string) => {
+      ai.imageUrls.push(url);
+      const authenticity = ai.nextAuthenticity;
+      ai.nextAuthenticity = undefined;
+      return authenticity ? { ...fakeAnalysis, authenticity } : fakeAnalysis;
+    },
     analyzeVideoFrames: async () => fakeAnalysis,
     parseEvidenceSearch: async (query: string) => ({
       queryText: query, projectIds: [], activities: [], tags: [], signals: [],
@@ -106,6 +125,10 @@ export async function resetDb() {
   cloud.deleted.length = 0;
   cloud.nextResponse.length = 0;
   cloud.failUpload = false;
+  cloud.rejectQualityAnalysis = false;
+  cloud.options.length = 0;
+  ai.imageUrls.length = 0;
+  ai.nextAuthenticity = undefined;
 }
 
 let server: Server | undefined;

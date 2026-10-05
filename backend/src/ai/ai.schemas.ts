@@ -6,6 +6,29 @@ const signalSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+const likelihood = z.enum(["low", "medium", "high"]);
+
+/**
+ * Trust signals read in the same vision call as the description, so they cost
+ * no extra AI quota. `.catch` keeps a malformed block from failing the whole
+ * analysis: the description still lands and these checks simply do not run.
+ */
+export const authenticitySchema = z
+  .object({
+    recaptureLikelihood: likelihood,
+    syntheticLikelihood: likelihood,
+    burnedInStamp: z.object({
+      present: z.boolean(),
+      text: z.string().trim().max(300).nullable(),
+      latitude: z.number().min(-90).max(90).nullable(),
+      longitude: z.number().min(-180).max(180).nullable(),
+      capturedAt: z.string().trim().max(40).nullable(),
+    }),
+    notes: z.array(z.string().trim().max(300)).max(5).default([]),
+  })
+  .optional()
+  .catch(undefined);
+
 export const assetAnalysisSchema = z.object({
   summary: z.string().trim().min(10).max(1200),
   detailedDescription: z.string().trim().min(20).max(3000),
@@ -22,6 +45,7 @@ export const assetAnalysisSchema = z.object({
   evidenceUsefulness: z.string().trim().min(2).max(500),
   uncertainties: z.array(z.string().trim().min(2).max(500)).max(20),
   confidence: z.number().min(0).max(1),
+  authenticity: authenticitySchema,
 });
 
 export const evidenceSearchIntentSchema = z.object({
