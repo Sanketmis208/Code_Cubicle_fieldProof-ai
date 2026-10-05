@@ -36,7 +36,7 @@ export const getProject: RequestHandler = async (req, res) => {
         project: { select: { id: true, name: true } },
         analysis: true,
       },
-      orderBy: { capturedAt: "desc" },
+      orderBy: [{ capturedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       take: 250,
     }),
     prisma.asset.groupBy({
@@ -202,13 +202,10 @@ export const deleteProject: RequestHandler = async (req, res) => {
     where: { projectId: id },
     select: { cloudinaryPublicId: true, resourceType: true },
   });
-  for (const asset of assets) {
-    await cloudinaryService.deleteResource(
-      asset.cloudinaryPublicId,
-      asset.resourceType.toLowerCase() as "image" | "video" | "raw",
-    );
-  }
+  // Delete database rows first: if this fails nothing is lost. Media cleanup
+  // afterwards is best-effort; an orphaned file is safer than a broken record.
   await prisma.project.delete({ where: { id } });
+  await cloudinaryService.deleteResources(assets);
   res.status(204).send();
 };
 

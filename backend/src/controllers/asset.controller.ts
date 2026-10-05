@@ -54,13 +54,14 @@ export const listAssets: RequestHandler = async (req, res) => {
     ...(resourceType && { resourceType }),
     ...(favorite !== undefined && { favorite }),
     ...(activity && { activity: { contains: activity, mode: "insensitive" } }),
-    ...((from || to) && {
-      OR: [
-        { capturedAt: evidenceDateRange },
-        { capturedAt: null, createdAt: evidenceDateRange },
-      ],
-    }),
-    ...(search && {
+    // Date range and keyword search are both OR-groups; they must be ANDed,
+    // otherwise the second spread overwrites the first and drops the filter.
+    AND: [
+      ...(from || to
+        ? [{ OR: [{ capturedAt: evidenceDateRange }, { capturedAt: null, createdAt: evidenceDateRange }] }]
+        : []),
+      ...(search
+        ? [{
       OR: [
         { originalFilename: { contains: search, mode: "insensitive" } },
         { description: { contains: search, mode: "insensitive" } },
@@ -70,7 +71,9 @@ export const listAssets: RequestHandler = async (req, res) => {
         { analysis: { is: { activity: { contains: search, mode: "insensitive" } } } },
         { analysis: { is: { locationType: { contains: search, mode: "insensitive" } } } },
       ],
-    }),
+          }]
+        : []),
+    ],
   };
   const [assets, total] = await Promise.all([
     prisma.asset.findMany({
@@ -193,11 +196,8 @@ export const deleteAsset: RequestHandler = async (req, res) => {
       409,
       "Delete or regenerate reports that reference this asset before deleting it",
     );
-  await cloudinaryService.deleteResource(
-    asset.cloudinaryPublicId,
-    asset.resourceType.toLowerCase() as "image" | "video" | "raw",
-  );
   await prisma.asset.delete({ where: { id: asset.id } });
+  await cloudinaryService.deleteResources([asset]);
   res.status(204).send();
 };
 
@@ -267,19 +267,33 @@ async function persistAnalysis(
   return analysis;
 }
 
+const STALE_ANALYSIS_MS = 5 * 60 * 1000;
+const isStaleProcessing = (startedAt: Date | null) =>
+  !startedAt || Date.now() - startedAt.getTime() > STALE_ANALYSIS_MS;
+
 async function processAnalysis(id: string, ownerId: string, force: boolean) {
   const asset = await ownedAsset(id, ownerId);
   if (asset.resourceType === ResourceType.RAW)
     throw new AppError(422, "AI analysis supports image and video assets");
-  if (asset.aiStatus === AnalysisStatus.PROCESSING)
+  if (asset.aiStatus === AnalysisStatus.PROCESSING && !isStaleProcessing(asset.analysisStartedAt))
     throw new AppError(409, "This asset is already being analyzed");
   if (asset.analysis && asset.aiStatus === AnalysisStatus.COMPLETED && !force)
     return { analysis: asset.analysis, cached: true };
 
+  const staleBefore = new Date(Date.now() - STALE_ANALYSIS_MS);
   const claimed = await prisma.asset.updateMany({
-    where: { id: asset.id, aiStatus: { not: AnalysisStatus.PROCESSING } },
+    where: {
+      id: asset.id,
+      OR: [
+        { aiStatus: { not: AnalysisStatus.PROCESSING } },
+        // A crash or restart mid-analysis would otherwise lock the asset forever.
+        { analysisStartedAt: null },
+        { analysisStartedAt: { lt: staleBefore } },
+      ],
+    },
     data: {
       aiStatus: AnalysisStatus.PROCESSING,
+      analysisStartedAt: new Date(),
       analysisError: null,
       analysisAttempts: { increment: 1 },
     },

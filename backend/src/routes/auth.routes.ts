@@ -8,5 +8,6 @@ import { loginSchema, registerSchema } from '../validators/auth.validators.js';
 export const authRouter = Router();
 authRouter.post('/register', validate(registerSchema), asyncHandler(register));
 authRouter.post('/login', validate(loginSchema), asyncHandler(login));
-authRouter.post('/logout', requireAuth, asyncHandler(logout));
+// Logout must work with an expired or missing session, so it is not behind requireAuth.
+authRouter.post('/logout', asyncHandler(logout));
 authRouter.get('/me', requireAuth, asyncHandler(me));

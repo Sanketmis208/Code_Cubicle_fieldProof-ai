@@ -16,6 +16,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { Brand } from "@/components/brand";
 import { useAuth } from "@/contexts/auth-context";
 import { authApi } from "@/api/auth";
@@ -33,6 +34,7 @@ export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const { user, setUser } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const currentSection = location.pathname.includes("/projects/")
@@ -43,7 +45,13 @@ export function AppLayout() {
           : location.pathname.startsWith(item.to),
       )?.label ?? "Workspace");
   const logout = async () => {
-    await authApi.logout();
+    // Sign out locally even when the server call fails (e.g. expired session).
+    try {
+      await authApi.logout();
+    } catch {
+      /* the local sign-out below is what matters */
+    }
+    queryClient.clear();
     setUser(null);
     navigate("/");
     toast.success("Signed out");
@@ -110,6 +118,7 @@ export function AppLayout() {
             {sidebar}
             </div>
             <button
+              aria-label="Close navigation"
               className="absolute right-4 top-7 text-white"
               onClick={() => setMobileOpen(false)}
             >

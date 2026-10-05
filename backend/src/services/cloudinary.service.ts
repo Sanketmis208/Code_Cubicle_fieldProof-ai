@@ -91,6 +91,24 @@ export const cloudinaryService = {
     return result;
   },
 
+  /** Best-effort cleanup after the database rows are gone; never throws. */
+  async deleteResources(
+    assets: Array<{ cloudinaryPublicId: string; resourceType: string }>,
+  ) {
+    if (!cloudinaryService.isConfigured()) return;
+    for (const asset of assets) {
+      await cloudinaryService.deleteResource(
+        asset.cloudinaryPublicId,
+        asset.resourceType.toLowerCase() as "image" | "video" | "raw",
+      ).catch((error: unknown) =>
+        console.warn(
+          `Cloudinary cleanup failed for ${asset.cloudinaryPublicId}:`,
+          error instanceof Error ? error.message : "unknown error",
+        ),
+      );
+    }
+  },
+
   async applyAnalysisMetadata(
     publicId: string,
     resourceType: "image" | "video" | "raw",

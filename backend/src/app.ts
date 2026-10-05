@@ -34,8 +34,8 @@ app.use(cors({
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
-app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 100, standardHeaders: 'draft-8', legacyHeaders: false }));
+if (env.NODE_ENV !== 'test') app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 100, standardHeaders: 'draft-8', legacyHeaders: false, skip: () => env.NODE_ENV === 'test' }));
 
 app.get('/api/health', async (_req, res) => {
   let database = 'unavailable';

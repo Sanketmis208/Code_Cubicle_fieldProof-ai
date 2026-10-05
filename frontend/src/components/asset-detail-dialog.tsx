@@ -41,15 +41,17 @@ export function AssetDetailDialog({
   const [tab, setTab] = useState<"overview" | "analysis" | "source">(
     "overview",
   );
+  // Each mutation receives the asset it acts on, so a slow request finishing
+  // after the dialog switched to another asset still refreshes the right data.
   const analyze = useMutation({
-    mutationFn: () =>
-      asset!.aiStatus === "FAILED"
-        ? assetsApi.retry(asset!.id)
-        : assetsApi.analyze(asset!.id, Boolean(asset!.analysis)),
-    onSuccess: () => {
+    mutationFn: (target: Asset) =>
+      target.aiStatus === "FAILED"
+        ? assetsApi.retry(target.id)
+        : assetsApi.analyze(target.id, Boolean(target.analysis)),
+    onSuccess: (_result, target) => {
       toast.success("Evidence analysis completed");
       void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["project", asset?.projectId] });
+      void qc.invalidateQueries({ queryKey: ["project", target.projectId] });
       onClose();
     },
     onError: (e) => {
@@ -58,23 +60,25 @@ export function AssetDetailDialog({
     },
   });
   const remove = useMutation({
-    mutationFn: () => assetsApi.remove(asset!.id),
-    onSuccess: () => {
+    mutationFn: (target: Asset) => assetsApi.remove(target.id),
+    onSuccess: (_result, target) => {
       toast.success("Evidence deleted from Cloudinary and FieldProof");
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["summary"] });
+      void qc.invalidateQueries({ queryKey: ["projects"] });
+      void qc.invalidateQueries({ queryKey: ["project", target.projectId] });
       onClose();
     },
     onError: (e) => toast.error(e.message),
   });
   const favorite = useMutation({
-    mutationFn: () => assetsApi.favorite(asset!.id, !asset!.favorite),
-    onSuccess: () => {
+    mutationFn: (target: Asset) => assetsApi.favorite(target.id, !target.favorite),
+    onSuccess: (_result, target) => {
       toast.success(
-        asset?.favorite ? "Removed from favorites" : "Added to favorites",
+        target.favorite ? "Removed from favorites" : "Added to favorites",
       );
       void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["project", asset?.projectId] });
+      void qc.invalidateQueries({ queryKey: ["project", target.projectId] });
       onClose();
     },
     onError: (e) => toast.error(e.message),
@@ -86,7 +90,7 @@ export function AssetDetailDialog({
         `Permanently delete “${asset.originalFilename}” from Cloudinary and this project?`,
       )
     )
-      remove.mutate();
+      remove.mutate(asset);
   };
   return (
     <Dialog.Root open onOpenChange={(v) => !v && onClose()}>
@@ -140,7 +144,7 @@ export function AssetDetailDialog({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => favorite.mutate()}
+                  onClick={() => favorite.mutate(asset)}
                 >
                   <Star
                     size={15}
@@ -154,7 +158,7 @@ export function AssetDetailDialog({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => analyze.mutate()}
+                    onClick={() => analyze.mutate(asset)}
                     disabled={analyze.isPending}
                   >
                     {analyze.isPending ? (

@@ -1,8 +1,12 @@
 import rateLimit from "express-rate-limit";
 
+import { env } from "../config/env.js";
+
 const common = {
   standardHeaders: "draft-8" as const,
   legacyHeaders: false,
+  // The automated test suite makes hundreds of requests from one IP.
+  skip: () => env.NODE_ENV === "test",
 };
 
 export const uploadLimiter = rateLimit({

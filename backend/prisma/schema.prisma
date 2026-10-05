@@ -93,6 +93,7 @@ model Asset {
   aiStatus           AnalysisStatus @default(NOT_REQUESTED)
   analysisError      String?
   analysisAttempts   Int            @default(0)
+  analysisStartedAt  DateTime?
   lastAnalyzedAt     DateTime?
   favorite           Boolean        @default(false)
   analysis           AssetAnalysis?
