@@ -1,66 +1,48 @@
-# FieldProof AI demo script (90–120 seconds)
+# FieldProof AI demo script (5 minutes)
 
-Prepare two clearly labeled field images or short videos for one project. Use genuine project media when available; if using synthetic material, label it as demo evidence.
+One story, told live: **the AI doubting the media, a person deciding, and a claim proved down to the pixel.** A shorter Cloudinary cut is at the end.
 
-## Pre-demo checklist
+## Before you go on stage
 
-- PostgreSQL is reachable and all Prisma migrations are applied.
-- `GET http://localhost:4000/api/health` returns `status: ok`, with Cloudinary and AI configured.
-- Backend and frontend environment files are present locally and remain git-ignored.
-- The frontend is available at `http://localhost:5173`.
-- Two small, clearly dated sample images are ready for the same project.
+- [ ] `npm run dev`; `GET /api/health` returns `status: ok` with Cloudinary and AI configured.
+- [ ] `FRONTEND_URL` is the address judges' phones can open (deployed URL or a LAN address). QR codes point there.
+- [ ] `npm run demo:seed -- --photos ./demo-photos --lat <lat> --lng <lng>` has run, so analyses are cached and no live AI call is needed. The folder holds: a 10–12 shot burst at the site, the same spot on another day, `old_*.jpg` from last year, a WhatsApp-forwarded copy of that old photo, and a photo of a laptop screen.
+- [ ] Three browser profiles are signed in: **owner**, **field worker**, **verifier** (`*@greenroots.demo`).
+- [ ] Twelve burst photos are kept aside for the live upload. A backup screen recording is on the laptop, and a phone hotspot is ready.
 
-1. **Dashboard — 10 seconds**  
-   Open the dashboard and point out live project, evidence, AI-coverage, comparison, and report counts.
+## The script
 
-2. **Project and upload — 20 seconds**  
-   Open the project, choose **Add evidence**, drag in the media, leave automatic analysis enabled, and upload. Explain that originals are stored in Cloudinary while PostgreSQL keeps canonical project and processing state.
+| # | Time | Who | What to do | What to say |
+| --- | --- | --- | --- | --- |
+| 1 | 0:20 | — | Title slide | "Geotagged photos did not stop fake attendance in MGNREGS. FieldProof is the layer that would have." |
+| 2 | 0:30 | Owner | Organization page: roles, an invite code, the audit log with "History verified" | "Every NGO gets its own organization. The person who uploads is never the person who approves, and every action is in a tamper-evident log." |
+| 3 | 0:45 | Field worker | Upload the 12 burst photos to *Bassi Plantation 2026* | "Twelve files, one event, three best shots. Only those three go to the AI, so we never hit the quota and reports never count the same moment twelve times." |
+| 4 | 0:45 | Field worker | Upload the WhatsApp copy of last year's photo and the laptop-screen photo | "This one is last year's photo, forwarded, with metadata stripped. FieldProof still finds it and shows the original next to it. This one is a photo of a screen. Neither is called fraud; both need a second look, and every point of the score is explained." Open the **Trust** tab. |
+| 5 | 0:30 | Judge | Hand a judge the dashboard QR code; they take a photo in their phone browser | "No install. The camera is the only way in. Place and server time are recorded at the shutter." It appears with a **Live · browser** badge. |
+| 6 | 0:30 | Verifier | **Review**: riskiest first. Approve the burst event with one click. Try to approve their own upload and show it is refused. Reject the reused photo with a reason. | "Separation of duties in one click, and a reason the field worker can act on." |
+| 7 | 0:30 | Owner | **Story Studio**: an Instagram card from approved evidence; scan its QR with a phone | "Faces blurred by default. The QR opens the public passport: the hash, the checks, the reviewer, and the exact Cloudinary transformation that made this card." |
+| 8 | 0:30 | Owner | **Claim checker**: "We planted 500 saplings at Plot B in February" | "It finds the evidence, says how much is approved, and tells us what a photo can't prove: the count. That is what a CSR head needs before sending a report." |
+| 9 | 0:20 | — | Roadmap slide | Signed app capture (built), device attestation, cross-NGO hash registry, satellite and weather cross-checks, C2PA on published images. |
 
-3. **Evidence intelligence — 15 seconds**  
-   Open an analyzed asset. Show the detailed observation, activity, environmental/infrastructure signals, uncertainty, evidence strength, confidence, and Source / Traceability tab.
+## Cloudinary cut (for the sponsor judges)
 
-4. **Natural-language search — 10 seconds**  
-   In Evidence Library, ask a query such as “Find tree planting evidence in Jaipur after January 2026.” Show the interpreted filters and deterministic results.
+Open any asset's **Cloudinary** tab and read one URL aloud. The upload analysis (`phash`, `quality_analysis`, `faces`) feeds the Trust Score and the best-shot choice. Every rendition, from the vision-model JPEG to the face-blurred public copy, the data-saver version and the campaign card, is a deterministic transformation that the passport records.
 
-5. **Timeline — 10 seconds**  
-   Return to the project Timeline and switch between Month, Activity, and Location groupings.
+> "Remove Cloudinary and the trust layer stops working: duplicate detection, best shots, face blur, campaign assets and traceability all run on it."
 
-6. **Before and after — 20 seconds**  
-   Open Comparisons, select the earlier and later evidence, and generate analysis. Highlight visible changes, confidence, uncertainty, limitations, and links back to both originals.
+## If something goes wrong
 
-7. **Report and traceability — 20 seconds**  
-   Open Reports, generate an Impact Summary, then show its evidence gaps and methodology disclaimer. Finish by clicking a Source evidence record to return to the Cloudinary-backed original.
+- **AI is slow or rate-limited:** use the seeded analyses and say they were saved from an earlier run. Upload still works; analysis can be retried.
+- **No network on stage:** play the backup recording. Phones keep queued captures until the connection returns.
+- **Phone camera blocked in the browser:** the page needs HTTPS (or localhost). Use the Flutter app or the backup recording.
 
-## Provider fallback
+## Hard questions
 
-If Groq is temporarily slow or unavailable, open a previously persisted analyzed asset, comparison, and report. Clearly state that the view is a saved prior result; do not present it as a newly generated response. Upload remains usable when analysis fails, and failed analysis can be retried later.
-
-## Exact restart commands
-
-From the repository root:
-
-```bash
-npm run dev
-```
-
-Or restart the processes separately:
-
-```bash
-npm run dev -w backend
-npm run dev -w frontend
-```
-
-For a production verification run:
-
-```bash
-npm run build
-NODE_ENV=production npm run start -w backend
-npm run preview -w frontend -- --host 127.0.0.1
-```
-
-## Known fragile actions
-
-- Keep individual uploads at or below 25 MB and batches at or below ten files.
-- Allow an active AI request to finish before retrying the same asset.
-- Do not delete source evidence or comparisons until reports that reference them are deleted or regenerated.
-- The preview server uses port 4173 by default; set `FRONTEND_URL` to its exact origin when testing that mode. The standard demo uses port 5173.
+| Question | Answer |
+| --- | --- |
+| Your AI quota is tiny. How does this scale? | One analysis per event's best shots, paced under the per-minute budget. Hashes, EXIF, quality and faces come from our server and Cloudinary at upload, with no language model involved. |
+| A browser capture can be spoofed. | Yes, so it is labelled "Live · browser" and capped below a signed app capture. Device attestation is on the roadmap. |
+| What if the GPS stamp on a photo is fake? | A stamp is a declared signal, never proof. It must agree with the site and the period, or the score drops. |
+| Won't you flag honest NGOs? | Nothing is rejected automatically. Checks explain; reviewers decide. WhatsApp forwards are labelled, not punished. |
+| What does Cloudinary do that S3 could not? | Perceptual hash, quality and faces at upload, smart crops, face blur, overlays for campaign assets, and reproducible transformation URLs for traceability. |
+| Who pays? | NGOs per active project. CSR teams and funders for portfolio views and auditor access; under the CSR Rules, larger CSR programmes need independent impact assessment, and this is the trail an assessor reads. |
