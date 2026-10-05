@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { StatusBadge } from "@/components/status-badge";
 import { cloudinaryThumbnail } from "@/lib/cloudinary";
+import { QrCode } from "@/components/qr-code";
 
 function SkeletonCard() {
   return (
@@ -108,6 +109,17 @@ export function DashboardPage() {
           </Button>
         </Link>}
       </div>
+      {can("evidence.upload") && (
+        <div className="card mt-6 flex flex-col items-center gap-5 p-5 sm:flex-row">
+          <QrCode value={`${window.location.origin}/capture`} size={112} className="rounded-xl border border-black/10" />
+          <div className="flex-1 text-center sm:text-left">
+            <p className="eyebrow text-emerald-700">Live capture from any phone</p>
+            <h2 className="mt-2 font-display text-xl font-bold">Scan to take evidence live, no install</h2>
+            <p className="mt-1 text-sm text-stone">Opens the camera in the phone&apos;s browser after signing in. Place and server time are recorded at the shutter, so the photo arrives with a <strong>Live · browser</strong> badge. Field teams use the FieldProof app for signed captures.</p>
+          </div>
+          <Link to="/capture"><Button variant="outline">Open here</Button></Link>
+        </div>
+      )}
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         {summaryLoading
           ? Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)

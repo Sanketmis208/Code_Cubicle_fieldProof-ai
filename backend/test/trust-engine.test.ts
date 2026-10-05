@@ -4,6 +4,7 @@ import './support/harness.js';
 import { evaluateTrust, type TrustInput } from '../src/trust/engine.js';
 import { exifTimeToIso, looksForwardedByWhatsApp, phashDistance, readExif } from '../src/trust/provenance.js';
 import { jpegWithExif } from './support/jpeg.js';
+import { mentions, stems } from '../src/utils/text-match.js';
 
 const now = new Date('2026-03-01T12:00:00Z');
 const base = (overrides: Partial<TrustInput> = {}): TrustInput => ({
@@ -151,5 +152,14 @@ describe('provenance helpers', () => {
     const nullIsland = await readExif(jpegWithExif({ make: 'X', latitude: 0, longitude: 0 }), 'image/jpeg');
     assert.equal(nullIsland?.latitude, undefined);
     assert.equal(await readExif(Buffer.from('not an image'), 'image/jpeg'), null);
+  });
+});
+
+describe('text matching', () => {
+  it('matches by word stems and ignores filler words', () => {
+    assert.deepEqual(stems(['Sapling planting', 'photos of evidence']), ['sapli', 'plant']);
+    assert.ok(mentions('tree planting along the canal', 'sapling planting'));
+    assert.ok(mentions('bassi plantation 2026', 'tree planting'));
+    assert.ok(!mentions('school wall painting', 'borewell drilling'));
   });
 });

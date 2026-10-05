@@ -38,6 +38,7 @@ export const ai = {
   nextAuthenticity: undefined as unknown,
   nextReport: undefined as unknown,
   nextClaim: undefined as unknown,
+  nextSearch: undefined as unknown,
 };
 let uploadCounter = 0;
 
@@ -98,7 +99,7 @@ export function installFakes() {
       return authenticity ? { ...fakeAnalysis, authenticity } : fakeAnalysis;
     },
     analyzeVideoFrames: async () => fakeAnalysis,
-    parseEvidenceSearch: async (query: string) => ({
+    parseEvidenceSearch: async (query: string) => ai.nextSearch ?? ({
       queryText: query, projectIds: [], activities: [], tags: [], signals: [],
       dateFrom: null, dateTo: null, mediaTypes: [], locationTerms: [], freeTextTerms: [],
     }),
@@ -139,6 +140,7 @@ export async function resetDb() {
   ai.nextAuthenticity = undefined;
   ai.nextReport = undefined;
   ai.nextClaim = undefined;
+  ai.nextSearch = undefined;
 }
 
 let server: Server | undefined;

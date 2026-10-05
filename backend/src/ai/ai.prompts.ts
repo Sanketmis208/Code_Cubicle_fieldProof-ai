@@ -25,8 +25,9 @@ export function evidenceSearchPrompt(
   query: string,
   projects: Array<{ id: string; name: string }>,
   today: string,
+  knownActivities: string[] = [],
 ) {
-  return `Today is ${today}. Available projects: ${JSON.stringify(projects)}\nUser query: ${JSON.stringify(query)}`;
+  return `Today is ${today}. Available projects: ${JSON.stringify(projects)}\nActivities already recorded in this library: ${JSON.stringify(knownActivities.slice(0, 60))}. When the user means one of these (for example "sapling planting" means "tree planting"), use that exact phrase in activities.\nUser query: ${JSON.stringify(query)}`;
 }
 
 export const projectInsightSystemPrompt = `Summarize a project using only the supplied persisted metadata and prior visual analyses.

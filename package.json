@@ -2,7 +2,10 @@
   "name": "fieldproof-ai",
   "private": true,
   "version": "1.0.0",
-  "workspaces": ["frontend", "backend"],
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
     "dev": "concurrently -n API,WEB -c cyan,green \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w backend && npm run build -w frontend",
@@ -11,10 +14,13 @@
     "test": "npm run test -w backend",
     "release:smoke": "node scripts/release-smoke.mjs",
     "prisma:generate": "npm run prisma:generate -w backend",
-    "prisma:validate": "npm run prisma:validate -w backend"
+    "prisma:validate": "npm run prisma:validate -w backend",
+    "demo:seed": "node scripts/demo-seed.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

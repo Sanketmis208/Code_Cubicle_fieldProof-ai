@@ -5,8 +5,9 @@ import { AppError } from '../utils/app-error.js';
 
 const cookieOptions = {
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  // SameSite=None is only accepted by browsers on Secure cookies.
+  secure: env.NODE_ENV === 'production' || env.COOKIE_SAME_SITE === 'none',
+  sameSite: env.COOKIE_SAME_SITE,
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/',
 };

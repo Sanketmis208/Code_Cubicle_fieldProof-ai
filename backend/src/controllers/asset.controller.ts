@@ -14,6 +14,7 @@ import { evidenceInclude, storeEvidence } from "../services/evidence.service.js"
 import { evaluateAssetTrust, ingestTrust, refreshCluster } from "../trust/service.js";
 import { exifTimeToIso } from "../trust/provenance.js";
 import type { Authenticity } from "../trust/engine.js";
+import { mentions, stems } from "../utils/text-match.js";
 
 const assetInclude = evidenceInclude;
 
@@ -359,17 +360,18 @@ function matchesIntent(
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-  const anyMatch = (terms: string[]) =>
-    !terms.length || terms.some((term) => searchable.includes(term.toLowerCase()));
-  const meaningfulFreeText = intent.freeTextTerms.filter(
-    (term) => !["evidence", "image", "images", "photo", "photos", "media", "show", "find"].includes(term.toLowerCase()),
-  );
+  // Activities, tags and signals match by word stem ("sapling planting" finds
+  // "tree planting"); places must match as written, since a stem of a place
+  // name would match the wrong village.
+  const anyMention = (terms: string[]) => !terms.length || terms.some((term) => mentions(searchable, term));
+  const anyExact = (terms: string[]) => !terms.length || terms.some((term) => searchable.includes(term.toLowerCase()));
+  const meaningfulFreeText = intent.freeTextTerms.filter((term) => stems([term]).length > 0);
   return (
-    anyMatch(intent.activities) &&
-    anyMatch(intent.tags) &&
-    anyMatch(intent.signals) &&
-    anyMatch(intent.locationTerms) &&
-    meaningfulFreeText.every((term) => searchable.includes(term.toLowerCase()))
+    anyMention(intent.activities) &&
+    anyMention(intent.tags) &&
+    anyMention(intent.signals) &&
+    anyExact(intent.locationTerms) &&
+    meaningfulFreeText.every((term) => mentions(searchable, term))
   );
 }
 
@@ -396,7 +398,10 @@ export const naturalLanguageSearch: RequestHandler = async (req, res) => {
     select: { id: true, name: true },
   });
   const allowedIds = new Set(projects.map((project) => project.id));
-  const parsed = await aiService.parseEvidenceSearch(query, projects);
+  const knownActivities = await prisma.asset.findMany({
+    where: { ...assetWhere(actor), activity: { not: null } }, distinct: ["activity"], select: { activity: true }, take: 60,
+  });
+  const parsed = await aiService.parseEvidenceSearch(query, projects, knownActivities.map((row) => row.activity!));
   const intent = {
     ...parsed,
     projectIds: parsed.projectIds.filter((id) => allowedIds.has(id)),

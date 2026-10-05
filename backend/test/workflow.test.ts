@@ -319,3 +319,18 @@ describe('before/after comparability', () => {
     assert.ok(comparability.factors.some((f: any) => f.factor === 'location' && /apart/.test(f.note)));
   });
 });
+
+describe('plain-language search', () => {
+  it('finds "tree planting" evidence when asked for "sapling planting", but keeps places exact', async () => {
+    const user = await registerUser();
+    const project = await user.post('/projects', projectInput({ name: 'Canal road' }));
+    const upload = await user.post('/assets/upload', uploadForm(project.body.project.id, [camera('search')]));
+    await user.post(`/assets/${upload.body.assets[0].id}/analyze`);
+    ai.nextSearch = { queryText: 'sapling planting', projectIds: [], activities: ['sapling planting'], tags: [], signals: [], dateFrom: null, dateTo: null, mediaTypes: [], locationTerms: [], freeTextTerms: [] };
+    const found = await user.post('/assets/search/interpret', { query: 'show sapling planting' });
+    assert.equal(found.body.assets.length, 1);
+    ai.nextSearch = { queryText: 'x', projectIds: [], activities: ['tree planting'], tags: [], signals: [], dateFrom: null, dateTo: null, mediaTypes: [], locationTerms: ['Bassi village'], freeTextTerms: [] };
+    const elsewhere = await user.post('/assets/search/interpret', { query: 'tree planting in Bassi village' });
+    assert.equal(elsewhere.body.assets.length, 0);
+  });
+});

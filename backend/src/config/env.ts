@@ -17,6 +17,11 @@ const envSchema = z.object({
   /** Token budget per minute for the AI provider; calls are paced to stay under it. */
   AI_TOKENS_PER_MINUTE: z.coerce.number().int().positive().default(7000),
   /** EXIF times carry no zone; this offset is assumed when the camera did not record one. */
+  /**
+   * lax (default) when the web app and API share a site (same domain, or /api
+   * proxied). Use none only when they are on different domains; it forces Secure.
+   */
+  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   EXIF_DEFAULT_UTC_OFFSET: z.string().regex(/^[+-]\d{2}:\d{2}$/).default('+05:30'),
 }).superRefine((value, context) => {
   if (value.NODE_ENV !== 'production') return;

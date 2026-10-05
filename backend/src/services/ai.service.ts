@@ -201,11 +201,12 @@ export const aiService = {
   parseEvidenceSearch(
     query: string,
     projects: Array<{ id: string; name: string }>,
+    knownActivities: string[] = [],
   ): Promise<EvidenceSearchIntent> {
     return structuredRequest(
       evidenceSearchIntentSchema,
       evidenceSearchSystemPrompt,
-      evidenceSearchPrompt(query, projects, new Date().toISOString().slice(0, 10)),
+      evidenceSearchPrompt(query, projects, new Date().toISOString().slice(0, 10), knownActivities),
       500,
     );
   },
