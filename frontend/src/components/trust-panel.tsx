@@ -46,7 +46,7 @@ export function ProvenanceFacts({ asset }: { asset: Asset }) {
     ['Camera', [asset.exif?.make, asset.exif?.model].filter(Boolean).join(' ') || 'No camera metadata'],
     ['Fingerprint', asset.sha256 ? `SHA-256 ${asset.sha256.slice(0, 16)}…` : 'Not recorded'],
     ...(asset.capturedByName ? [['Captured by', `${asset.capturedByName} (declared by uploader)`] as [string, string]] : []),
-    ...(asset.eventCluster ? [['Event', `One of ${asset.eventCluster.assetCount} shots in this event`] as [string, string]] : []),
+    ...(asset.eventCluster && asset.eventCluster.assetCount > 1 ? [["Event", `One of ${asset.eventCluster.assetCount} shots of the same moment`] as [string, string]] : []),
   ];
   return (
     <div>

@@ -200,8 +200,10 @@ export function evaluateTrust(input: TrustInput): TrustEvaluation {
       details: auth.burnedInStamp,
     });
 
-  if (input.qualityScore !== null && input.qualityScore < 0.3 && input.resourceType === 'IMAGE')
-    add({ check: 'QUALITY', result: 'INFO', weight: -5, hard: false, message: 'Image is blurred or out of focus' });
+  // Focus only ranks an event's best shots. Measured on real uploads, sharp
+  // scenes with soft gradients score 0.1-0.3, so it never costs trust points.
+  if (input.qualityScore !== null && input.qualityScore < 0.05 && input.resourceType === 'IMAGE')
+    add({ check: 'QUALITY', result: 'INFO', weight: 0, hard: false, message: 'Image may be blurred or out of focus' });
 
   const hard = checks.some((check) => check.hard);
   const raw = cap + checks.reduce((sum, check) => sum + check.weight, 0);

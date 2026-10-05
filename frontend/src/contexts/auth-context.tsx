@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onSessionEvent = (event: Event) => {
       const { status } = (event as CustomEvent<{ status: number; code?: string }>).detail;
       if (status === 401) {
-        queryClient.clear();
+        dropWorkspaceData();
         queryClient.setQueryData(['me'], null);
       } else {
         // Removed from the active org, or it no longer exists: re-read memberships.
@@ -78,13 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     membership,
     isLoading,
     can: (permission) => Boolean(membership?.permissions.includes(permission)),
+    // The ['me'] query stays registered (the provider observes it); everything
+    // else is dropped so a previous user's data can never render.
     setSession: (session) => {
-      queryClient.clear();
+      dropWorkspaceData();
       queryClient.setQueryData(['me'], session);
     },
     setUser: (user) => {
       if (!user) {
-        queryClient.clear();
+        dropWorkspaceData();
         queryClient.setQueryData(['me'], null);
       } else queryClient.setQueryData(['me'], (current: Session | undefined) => (current ? { ...current, user } : current));
     },

@@ -12,8 +12,19 @@ const strings = (value: Prisma.JsonValue | null | undefined) =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
 function activityText(asset: Candidate) {
-  return [asset.activity, asset.description, asset.analysis?.activity, asset.analysis?.summary, ...strings(asset.analysis?.tags)]
-    .map(lower).join(" ");
+  return [
+    asset.activity, asset.description, asset.analysis?.activity, asset.analysis?.summary, ...strings(asset.analysis?.tags),
+    // Unanalysed evidence still belongs to a project with a stated purpose.
+    asset.project.name, asset.project.category,
+  ].map(lower).join(" ");
+}
+
+const STOP = new Set(["with", "from", "that", "this", "were", "have", "been", "into", "over", "under", "about", "their", "they", "documented", "evidence", "photos", "photo", "project"]);
+/** Words of four letters or more, cut to a short stem so "planting" meets "plantation". */
+export function claimStems(terms: string[]) {
+  return [...new Set(terms.flatMap((term) => term.toLowerCase().split(/[^a-z0-9]+/))
+    .filter((word) => word.length >= 4 && !STOP.has(word))
+    .map((word) => (word.length > 6 ? word.slice(0, 5) : word)))];
 }
 function placeText(asset: Candidate) {
   return [asset.site?.name, asset.locationName, asset.project.location, asset.project.name, asset.analysis?.locationType]
@@ -41,8 +52,8 @@ export const checkClaim: RequestHandler = async (req, res) => {
     take: 1000,
   });
 
-  const activityTerms = [...intent.activities, ...intent.keywords].map((term) => term.toLowerCase()).filter((term) => term.length > 2);
-  const placeTerms = intent.locationTerms.map((term) => term.toLowerCase());
+  const activityTerms = claimStems([...intent.activities, ...intent.keywords]);
+  const placeTerms = intent.locationTerms.map((term) => term.toLowerCase()).filter(Boolean);
   const from = intent.dateFrom ? new Date(`${intent.dateFrom}T00:00:00.000Z`) : null;
   const to = intent.dateTo ? new Date(`${intent.dateTo}T23:59:59.999Z`) : null;
 
