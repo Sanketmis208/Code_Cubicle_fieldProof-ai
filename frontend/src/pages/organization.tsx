@@ -284,12 +284,18 @@ const ACTION_LABEL: Record<string, string> = {
   "evidence.uploaded": "uploaded evidence", "evidence.deleted": "deleted evidence",
   "comparison.created": "generated a comparison", "comparison.deleted": "deleted a comparison",
   "report.created": "generated a report", "report.deleted": "deleted a report",
+  "evidence.reviewed": "reviewed evidence", "site.created": "added a site", "site.deleted": "removed a site",
+  "story.created": "published a campaign asset", "passport.shared": "published an evidence passport",
+  "passport.unshared": "withdrew an evidence passport", "capture.signature_failed": "sent a capture whose signature failed",
 };
 
 function auditDetail(entry: AuditEntry) {
   const meta = entry.metadata ?? {};
   const role = (value: unknown) => (typeof value === "string" && value in ROLE_INFO ? ROLE_INFO[value as OrgRole].label : null);
   if (entry.action === "member.role_changed") return `${role(meta.from) ?? meta.from} → ${role(meta.to) ?? meta.to}`;
+  if (entry.action === "evidence.reviewed" && typeof meta.decision === "string")
+    return `${meta.decision.toLowerCase().replace("_", " ")}${typeof meta.filename === "string" ? ` · ${meta.filename}` : ""}${meta.selfReviewed ? " · self-reviewed" : ""}`;
+  if (entry.action === "story.created" && typeof meta.kind === "string") return meta.kind.toLowerCase().replace("_", " ");
   if (typeof meta.name === "string") return meta.name;
   if (typeof meta.title === "string") return meta.title;
   if (typeof meta.filename === "string") return meta.filename;
