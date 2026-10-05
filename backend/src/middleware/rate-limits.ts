@@ -22,3 +22,11 @@ export const aiLimiter = rateLimit({
   limit: 60,
   message: { error: { message: "AI request limit reached. Try again shortly." } },
 });
+
+/** Invite codes are short enough to type, so guessing must be throttled. */
+export const inviteJoinLimiter = rateLimit({
+  ...common,
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: { error: { message: "Too many invite attempts. Try again in a few minutes." } },
+});

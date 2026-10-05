@@ -3,24 +3,39 @@ import { prisma } from "../lib/prisma.js";
 import { AppError } from "../utils/app-error.js";
 import { aiService } from "../services/ai.service.js";
 import { cloudinaryService } from "../services/cloudinary.service.js";
+import { auditService } from "../services/audit.service.js";
+import {
+  actorForProject,
+  actorFromRequest,
+  assetWhere,
+  projectWhere,
+  requirePermission,
+} from "../authz/actor.js";
+import { ORG_WIDE_ROLES } from "../authz/permissions.js";
 
 const projectInclude = {
   _count: { select: { assets: true, comparisons: true, reports: true } },
   insight: true,
 } as const;
 
-async function ownedProject(id: string, ownerId: string) {
-  const project = await prisma.project.findFirst({
-    where: { id, ownerId },
+/** Loads a project the user may see; scope and permission are checked first. */
+async function scopedProject(
+  userId: string,
+  id: string,
+  permission?: Parameters<typeof actorForProject>[2],
+) {
+  const actor = await actorForProject(userId, id, permission);
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id },
     include: projectInclude,
   });
-  if (!project) throw new AppError(404, "Project not found");
-  return project;
+  return { actor, project };
 }
 
 export const listProjects: RequestHandler = async (req, res) => {
+  const actor = await actorFromRequest(req);
   const projects = await prisma.project.findMany({
-    where: { ownerId: req.userId },
+    where: projectWhere(actor),
     include: projectInclude,
     orderBy: { updatedAt: "desc" },
   });
@@ -28,7 +43,7 @@ export const listProjects: RequestHandler = async (req, res) => {
 };
 
 export const getProject: RequestHandler = async (req, res) => {
-  const project = await ownedProject(req.params.id as string, req.userId!);
+  const { project } = await scopedProject(req.userId!, req.params.id as string);
   const [recentAssets, statusGroups, typeGroups] = await Promise.all([
     prisma.asset.findMany({
       where: { projectId: project.id },
@@ -112,7 +127,7 @@ export const getProject: RequestHandler = async (req, res) => {
 };
 
 export const generateProjectInsight: RequestHandler = async (req, res) => {
-  const project = await ownedProject(req.params.id as string, req.userId!);
+  const { project } = await scopedProject(req.userId!, req.params.id as string, "insight.generate");
   const assets = await prisma.asset.findMany({
     where: { projectId: project.id },
     include: { analysis: true },
@@ -168,20 +183,30 @@ export const generateProjectInsight: RequestHandler = async (req, res) => {
 };
 
 export const createProject: RequestHandler = async (req, res) => {
+  const actor = await actorFromRequest(req);
+  requirePermission(actor, "project.create");
   const project = await prisma.project.create({
     data: {
       ...req.body,
       coverImage: req.body.coverImage || null,
-      ownerId: req.userId!,
+      ownerId: actor.userId,
+      organizationId: actor.organizationId,
+      // A program manager only sees assigned projects, so they are assigned to
+      // what they create; org-wide roles see it anyway.
+      ...(actor.allProjects ? {} : { members: { create: { userId: actor.userId, assignedById: actor.userId } } }),
     },
     include: projectInclude,
+  });
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "project.created",
+    entityType: "Project", entityId: project.id, metadata: { name: project.name },
   });
   res.status(201).json({ project });
 };
 
 export const updateProject: RequestHandler = async (req, res) => {
   const id = req.params.id as string;
-  const existing = await ownedProject(id, req.userId!);
+  const { actor, project: existing } = await scopedProject(req.userId!, id, "project.edit");
   const startDate = req.body.startDate ?? existing.startDate;
   const endDate =
     req.body.endDate === undefined ? existing.endDate : req.body.endDate;
@@ -192,12 +217,16 @@ export const updateProject: RequestHandler = async (req, res) => {
     data: req.body,
     include: projectInclude,
   });
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "project.updated",
+    entityType: "Project", entityId: id, metadata: { fields: Object.keys(req.body) },
+  });
   res.json({ project });
 };
 
 export const deleteProject: RequestHandler = async (req, res) => {
   const id = req.params.id as string;
-  await ownedProject(id, req.userId!);
+  const { actor, project } = await scopedProject(req.userId!, id, "project.delete");
   const assets = await prisma.asset.findMany({
     where: { projectId: id },
     select: { cloudinaryPublicId: true, resourceType: true },
@@ -205,12 +234,18 @@ export const deleteProject: RequestHandler = async (req, res) => {
   // Delete database rows first: if this fails nothing is lost. Media cleanup
   // afterwards is best-effort; an orphaned file is safer than a broken record.
   await prisma.project.delete({ where: { id } });
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "project.deleted",
+    entityType: "Project", entityId: id, metadata: { name: project.name, assets: assets.length },
+  });
   await cloudinaryService.deleteResources(assets);
   res.status(204).send();
 };
 
 export const dashboardSummary: RequestHandler = async (req, res) => {
-  const ownerId = req.userId!;
+  const actor = await actorFromRequest(req);
+  const projectScope = projectWhere(actor);
+  const assetScope = assetWhere(actor);
   const [
     projects,
     assets,
@@ -221,22 +256,22 @@ export const dashboardSummary: RequestHandler = async (req, res) => {
     reports,
     recentAssets,
   ] = await Promise.all([
-    prisma.project.count({ where: { ownerId } }),
-    prisma.asset.count({ where: { project: { ownerId } } }),
+    prisma.project.count({ where: projectScope }),
+    prisma.asset.count({ where: assetScope }),
     prisma.asset.count({
-      where: { project: { ownerId }, aiStatus: "COMPLETED" },
+      where: { ...assetScope, aiStatus: "COMPLETED" },
     }),
     prisma.asset.count({
       where: {
-        project: { ownerId },
+        ...assetScope,
         aiStatus: { in: ["NOT_REQUESTED", "PENDING", "PROCESSING"] },
       },
     }),
-    prisma.asset.count({ where: { project: { ownerId }, aiStatus: "FAILED" } }),
-    prisma.comparison.count({ where: { project: { ownerId } } }),
-    prisma.report.count({ where: { project: { ownerId } } }),
+    prisma.asset.count({ where: { ...assetScope, aiStatus: "FAILED" } }),
+    prisma.comparison.count({ where: { project: projectScope } }),
+    prisma.report.count({ where: { project: projectScope } }),
     prisma.asset.findMany({
-      where: { project: { ownerId } },
+      where: assetScope,
       select: {
         id: true,
         originalFilename: true,
@@ -261,4 +296,63 @@ export const dashboardSummary: RequestHandler = async (req, res) => {
     reports,
     recentAssets,
   });
+};
+
+/** The project's team: assigned members plus org-wide roles who see it anyway. */
+export const listProjectMembers: RequestHandler = async (req, res) => {
+  const projectId = req.params.id as string;
+  const actor = await actorForProject(req.userId!, projectId);
+  const [assignments, orgWide] = await Promise.all([
+    prisma.projectMember.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true, user: { select: { id: true, name: true, email: true, memberships: { where: { organizationId: actor.organizationId }, select: { role: true } } } } },
+    }),
+    prisma.membership.findMany({
+      where: { organizationId: actor.organizationId, status: "ACTIVE", role: { in: [...ORG_WIDE_ROLES] } },
+      select: { role: true, user: { select: { id: true, name: true, email: true } } },
+    }),
+  ]);
+  res.json({
+    assigned: assignments.map(({ user: { memberships, ...user }, createdAt }) => ({
+      user, role: memberships[0]?.role ?? null, assignedAt: createdAt,
+    })),
+    orgWide: orgWide.map(({ user, role }) => ({ user, role })),
+  });
+};
+
+export const addProjectMember: RequestHandler = async (req, res) => {
+  const projectId = req.params.id as string;
+  const actor = await actorForProject(req.userId!, projectId, "project.members.manage");
+  const userId = req.body.userId as string;
+  // Only members of this project's own organization can ever be assigned.
+  const membership = await prisma.membership.findUnique({
+    where: { organizationId_userId: { organizationId: actor.organizationId, userId } },
+    select: { status: true },
+  });
+  if (!membership || membership.status !== "ACTIVE")
+    throw new AppError(422, "Only active members of this organization can be assigned", undefined, "NOT_A_MEMBER");
+  await prisma.projectMember.upsert({
+    where: { projectId_userId: { projectId, userId } },
+    create: { projectId, userId, assignedById: actor.userId },
+    update: {},
+  });
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "project.member_added",
+    entityType: "Project", entityId: projectId, metadata: { userId },
+  });
+  res.status(201).json({ assigned: true });
+};
+
+export const removeProjectMember: RequestHandler = async (req, res) => {
+  const projectId = req.params.id as string;
+  const actor = await actorForProject(req.userId!, projectId, "project.members.manage");
+  const userId = req.params.userId as string;
+  const result = await prisma.projectMember.deleteMany({ where: { projectId, userId } });
+  if (!result.count) throw new AppError(404, "This person is not assigned to the project");
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "project.member_removed",
+    entityType: "Project", entityId: projectId, metadata: { userId },
+  });
+  res.status(204).send();
 };

@@ -131,6 +131,7 @@ export class Client {
   cookie = '';
   orgId: string | undefined;
   user: any;
+  memberships: any[] = [];
 
   async request<T = any>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<Result<T>> {
     const isForm = body instanceof FormData;
@@ -166,6 +167,7 @@ export async function registerUser(name = 'Test User', extra: Record<string, unk
   const result = await client.post('/auth/register', { name, email, password: 'Password123', ...extra });
   if (result.status !== 201) throw new Error(`register failed: ${result.status} ${JSON.stringify(result.body)}`);
   client.user = { ...result.body.user, email, password: 'Password123' };
+  client.memberships = result.body.memberships;
   return client;
 }
 
@@ -189,3 +191,18 @@ export const projectInput = (overrides: Record<string, unknown> = {}) => ({
   location: 'Jaipur',
   ...overrides,
 });
+
+type Role = 'OWNER' | 'ADMIN' | 'PROGRAM_MANAGER' | 'VERIFIER' | 'FIELD_WORKER' | 'VIEWER';
+
+/** An organization with an owner and one member per requested role, all joined by invite. */
+export async function orgWith(name: string, roles: Role[] = []) {
+  const owner = await registerUser(`${name} owner`, { organizationName: name });
+  const orgId: string = owner.memberships[0].organization.id;
+  const members = {} as Record<Role, Client>;
+  for (const role of roles) {
+    const invite = await owner.post(`/orgs/${orgId}/invites`, { role });
+    if (invite.status !== 201) throw new Error(`invite failed: ${invite.status} ${JSON.stringify(invite.body)}`);
+    members[role] = await registerUser(`${name} ${role}`, { inviteCode: invite.body.code });
+  }
+  return { owner, orgId, members };
+}

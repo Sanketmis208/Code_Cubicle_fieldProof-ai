@@ -14,7 +14,7 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
   if (error instanceof AppError) {
-    res.status(error.statusCode).json({ error: { message: error.message, details: error.details } });
+    res.status(error.statusCode).json({ error: { message: error.message, details: error.details, code: error.code } });
     return;
   }
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

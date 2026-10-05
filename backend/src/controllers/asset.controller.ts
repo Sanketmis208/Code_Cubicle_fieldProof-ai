@@ -7,28 +7,26 @@ import { AppError } from "../utils/app-error.js";
 import type { AssetAnalysisResult, EvidenceSearchIntent } from "../ai/ai.schemas.js";
 import { assertMediaSignature } from "../middleware/upload.js";
 import { reportReferencesEvidence } from "../utils/report-references.js";
+import { actorForProject, actorFromRequest, assetWhere, projectWhere } from "../authz/actor.js";
+import type { Permission } from "../authz/permissions.js";
+import { auditService } from "../services/audit.service.js";
 
 const assetInclude = {
   project: { select: { id: true, name: true, location: true, category: true } },
   analysis: true,
 } as const;
 
-async function ownedProject(projectId: string, ownerId: string) {
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, ownerId },
-    select: { id: true, name: true },
-  });
-  if (!project) throw new AppError(404, "Project not found");
-  return project;
-}
+type ScopedAsset = Prisma.AssetGetPayload<{ include: typeof assetInclude }>;
 
-async function ownedAsset(id: string, ownerId: string) {
-  const asset = await prisma.asset.findFirst({
-    where: { id, project: { ownerId } },
-    include: assetInclude,
-  });
+/**
+ * Loads an asset only if the user may see its project; "not yours" and
+ * "does not exist" both answer 404 so IDs from other organizations reveal nothing.
+ */
+async function scopedAsset(userId: string, id: string, permission?: Permission) {
+  const asset = await prisma.asset.findUnique({ where: { id }, include: assetInclude });
   if (!asset) throw new AppError(404, "Evidence asset not found");
-  return asset;
+  const actor = await actorForProject(userId, asset.projectId, permission, "Evidence asset not found");
+  return { actor, asset };
 }
 
 export const listAssets: RequestHandler = async (req, res) => {
@@ -44,12 +42,13 @@ export const listAssets: RequestHandler = async (req, res) => {
     page,
     limit,
   } = (req.validatedQuery ?? req.query) as Record<string, any>;
+  const actor = await actorFromRequest(req);
   const evidenceDateRange = {
     ...(from && { gte: from }),
     ...(to && { lte: to }),
   };
   const where: Prisma.AssetWhereInput = {
-    project: { ownerId: req.userId },
+    ...assetWhere(actor),
     ...(projectId && { projectId }),
     ...(resourceType && { resourceType }),
     ...(favorite !== undefined && { favorite }),
@@ -96,11 +95,13 @@ export const listAssets: RequestHandler = async (req, res) => {
   });
 };
 
-export const getAsset: RequestHandler = async (req, res) =>
-  res.json({ asset: await ownedAsset(req.params.id as string, req.userId!) });
+export const getAsset: RequestHandler = async (req, res) => {
+  const { asset } = await scopedAsset(req.userId!, req.params.id as string);
+  res.json({ asset });
+};
 
 export const setFavorite: RequestHandler = async (req, res) => {
-  const asset = await ownedAsset(req.params.id as string, req.userId!);
+  const { asset } = await scopedAsset(req.userId!, req.params.id as string, "evidence.curate");
   const updated = await prisma.asset.update({
     where: { id: asset.id },
     data: { favorite: req.body.favorite },
@@ -110,8 +111,10 @@ export const setFavorite: RequestHandler = async (req, res) => {
 };
 
 export const uploadAssets: RequestHandler = async (req, res) => {
-  const projectId = String(req.body.projectId ?? "");
-  await ownedProject(projectId, req.userId!);
+  const projectId = String(req.body.projectId ?? req.query.projectId ?? "");
+  if (typeof req.query.projectId === "string" && req.body.projectId && req.body.projectId !== req.query.projectId)
+    throw new AppError(422, "projectId in the URL and the form do not match");
+  const actor = await actorForProject(req.userId!, projectId, "evidence.upload");
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
   if (!files.length) throw new AppError(422, "Select at least one image or video");
   files.forEach(assertMediaSignature);
@@ -120,13 +123,14 @@ export const uploadAssets: RequestHandler = async (req, res) => {
   try {
     for (const file of files) {
       const uploaded = await cloudinaryService.uploadBuffer(file.buffer, {
-        folder: `fieldproof/${req.userId}/${projectId}`,
+        folder: `fieldproof/${actor.organizationId}/${projectId}`,
         context: `project_id=${projectId}|original_filename=${file.originalname.replace(/[=|]/g, " ")}`,
       });
       try {
       const asset = await prisma.asset.create({
         data: {
           projectId,
+          uploadedById: actor.userId,
           cloudinaryPublicId: uploaded.public_id,
           cloudinaryAssetId: uploaded.asset_id,
           resourceType:
@@ -172,11 +176,16 @@ export const uploadAssets: RequestHandler = async (req, res) => {
       await prisma.asset.deleteMany({ where: { id: { in: created.map((asset) => asset.id) } } });
     throw error;
   }
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "evidence.uploaded",
+    entityType: "Project", entityId: projectId,
+    metadata: { count: created.length, assetIds: created.map((asset) => asset.id) },
+  });
   res.status(201).json({ assets: created });
 };
 
 export const deleteAsset: RequestHandler = async (req, res) => {
-  const asset = await ownedAsset(req.params.id as string, req.userId!);
+  const { actor, asset } = await scopedAsset(req.userId!, req.params.id as string, "evidence.delete");
   const [comparisonCount, reports] = await Promise.all([
     prisma.comparison.count({
       where: { OR: [{ beforeAssetId: asset.id }, { afterAssetId: asset.id }] },
@@ -197,12 +206,16 @@ export const deleteAsset: RequestHandler = async (req, res) => {
       "Delete or regenerate reports that reference this asset before deleting it",
     );
   await prisma.asset.delete({ where: { id: asset.id } });
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "evidence.deleted",
+    entityType: "Asset", entityId: asset.id, metadata: { filename: asset.originalFilename, projectId: asset.projectId },
+  });
   await cloudinaryService.deleteResources([asset]);
   res.status(204).send();
 };
 
 async function persistAnalysis(
-  asset: Awaited<ReturnType<typeof ownedAsset>>,
+  asset: ScopedAsset,
   result: AssetAnalysisResult,
   representativeFrames: string[],
 ) {
@@ -271,8 +284,8 @@ const STALE_ANALYSIS_MS = 5 * 60 * 1000;
 const isStaleProcessing = (startedAt: Date | null) =>
   !startedAt || Date.now() - startedAt.getTime() > STALE_ANALYSIS_MS;
 
-async function processAnalysis(id: string, ownerId: string, force: boolean) {
-  const asset = await ownedAsset(id, ownerId);
+async function processAnalysis(id: string, userId: string, force: boolean) {
+  const { asset } = await scopedAsset(userId, id, "evidence.analyze");
   if (asset.resourceType === ResourceType.RAW)
     throw new AppError(422, "AI analysis supports image and video assets");
   if (asset.aiStatus === AnalysisStatus.PROCESSING && !isStaleProcessing(asset.analysisStartedAt))
@@ -342,7 +355,7 @@ function stringArray(value: Prisma.JsonValue | null | undefined): string[] {
 }
 
 function matchesIntent(
-  asset: Awaited<ReturnType<typeof ownedAsset>>,
+  asset: ScopedAsset,
   intent: EvidenceSearchIntent,
 ) {
   const evidenceDate = asset.capturedAt ?? asset.createdAt;
@@ -404,8 +417,9 @@ function explainIntent(intent: EvidenceSearchIntent, projectNames: Map<string, s
 
 export const naturalLanguageSearch: RequestHandler = async (req, res) => {
   const { query, page, limit } = req.body as { query: string; page: number; limit: number };
+  const actor = await actorFromRequest(req);
   const projects = await prisma.project.findMany({
-    where: { ownerId: req.userId },
+    where: projectWhere(actor),
     select: { id: true, name: true },
   });
   const allowedIds = new Set(projects.map((project) => project.id));
@@ -416,7 +430,7 @@ export const naturalLanguageSearch: RequestHandler = async (req, res) => {
   };
   const candidates = await prisma.asset.findMany({
     where: {
-      project: { ownerId: req.userId },
+      ...assetWhere(actor),
       ...(intent.projectIds.length && { projectId: { in: intent.projectIds } }),
       ...(intent.mediaTypes.length && {
         resourceType: { in: intent.mediaTypes as ResourceType[] },

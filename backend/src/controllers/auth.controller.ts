@@ -11,20 +11,24 @@ const cookieOptions = {
   path: '/',
 };
 
+// `memberships` lists every organization the user can act in, with the role
+// and permission list the clients use to show or hide actions.
 export const register: RequestHandler = async (req, res) => {
   const user = await authService.register(req.body);
-  res.cookie('fieldproof_token', authService.token(user.id), cookieOptions).status(201).json({ user });
+  const memberships = await authService.memberships(user.id);
+  res.cookie('fieldproof_token', authService.token(user.id), cookieOptions).status(201).json({ user, memberships });
 };
 
 export const login: RequestHandler = async (req, res) => {
   const user = await authService.login(req.body.email, req.body.password);
-  res.cookie('fieldproof_token', authService.token(user.id), cookieOptions).json({ user });
+  const memberships = await authService.memberships(user.id);
+  res.cookie('fieldproof_token', authService.token(user.id), cookieOptions).json({ user, memberships });
 };
 
 export const me: RequestHandler = async (req, res) => {
   const user = await authService.getUser(req.userId!);
   if (!user) throw new AppError(401, 'User no longer exists');
-  res.json({ user });
+  res.json({ user, memberships: await authService.memberships(user.id) });
 };
 
 export const logout: RequestHandler = (_req, res) => {

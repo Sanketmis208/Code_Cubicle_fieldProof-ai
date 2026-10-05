@@ -20,10 +20,23 @@ import {
   naturalLanguageSearchSchema,
 } from "../validators/asset.validators.js";
 import { aiLimiter, uploadLimiter } from "../middleware/rate-limits.js";
+import { actorForProject } from "../authz/actor.js";
+import type { RequestHandler } from "express";
+
+/**
+ * Clients that put `?projectId=` on the upload URL get their access checked
+ * before multer buffers up to 10 x 25 MB into memory. The body field is still
+ * checked in the handler, so older clients keep working.
+ */
+const preauthorizeUpload: RequestHandler = async (req, _res, next) => {
+  const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
+  if (projectId) await actorForProject(req.userId!, projectId, "evidence.upload");
+  next();
+};
 
 export const assetRouter = Router();
 assetRouter.get("/", validate(listAssetsSchema), asyncHandler(listAssets));
-assetRouter.post("/upload", uploadLimiter, uploadMedia, asyncHandler(uploadAssets));
+assetRouter.post("/upload", uploadLimiter, asyncHandler(preauthorizeUpload), uploadMedia, asyncHandler(uploadAssets));
 assetRouter.post(
   "/search/interpret",
   aiLimiter,

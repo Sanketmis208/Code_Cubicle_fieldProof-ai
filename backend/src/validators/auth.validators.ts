@@ -9,6 +9,7 @@ export const registerSchema = z.object({
     email,
     password,
     organizationName: z.string().trim().max(120).optional().or(z.literal('')),
+    inviteCode: z.string().trim().min(8).max(20).optional().or(z.literal('').transform(() => undefined)),
   }),
 });
 

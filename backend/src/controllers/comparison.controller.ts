@@ -5,6 +5,8 @@ import { aiService } from "../services/ai.service.js";
 import { cloudinaryService } from "../services/cloudinary.service.js";
 import { AppError } from "../utils/app-error.js";
 import { reportReferencesComparison } from "../utils/report-references.js";
+import { actorForProject, actorFromRequest, projectWhere } from "../authz/actor.js";
+import { auditService } from "../services/audit.service.js";
 
 const assetSelect = {
   id: true,
@@ -27,11 +29,6 @@ const comparisonInclude = {
   afterAsset: { select: assetSelect },
 } as const;
 
-async function ownedProject(id: string, ownerId: string) {
-  const project = await prisma.project.findFirst({ where: { id, ownerId } });
-  if (!project) throw new AppError(404, "Project not found");
-  return project;
-}
 
 function representativeUrl(asset: {
   resourceType: string;
@@ -47,8 +44,9 @@ function representativeUrl(asset: {
 
 export const listComparisons: RequestHandler = async (req, res) => {
   const { projectId } = (req.validatedQuery ?? req.query) as { projectId?: string };
+  const actor = await actorFromRequest(req);
   const comparisons = await prisma.comparison.findMany({
-    where: { project: { ownerId: req.userId }, ...(projectId && { projectId }) },
+    where: { project: projectWhere(actor), ...(projectId && { projectId }) },
     include: comparisonInclude,
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -58,7 +56,8 @@ export const listComparisons: RequestHandler = async (req, res) => {
 
 export const createComparison: RequestHandler = async (req, res) => {
   const { projectId, beforeAssetId, afterAssetId } = req.body;
-  const project = await ownedProject(projectId, req.userId!);
+  const actor = await actorForProject(req.userId!, projectId, "comparison.create");
+  const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
   const assets = await prisma.asset.findMany({
     where: { id: { in: [beforeAssetId, afterAssetId] }, projectId },
     select: assetSelect,
@@ -114,14 +113,17 @@ export const createComparison: RequestHandler = async (req, res) => {
     },
     include: comparisonInclude,
   });
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "comparison.created",
+    entityType: "Comparison", entityId: comparison.id, metadata: { beforeAssetId, afterAssetId },
+  });
   res.status(201).json({ comparison, cached: false });
 };
 
 export const deleteComparison: RequestHandler = async (req, res) => {
-  const comparison = await prisma.comparison.findFirst({
-    where: { id: req.params.id as string, project: { ownerId: req.userId } },
-  });
+  const comparison = await prisma.comparison.findUnique({ where: { id: req.params.id as string } });
   if (!comparison) throw new AppError(404, "Comparison not found");
+  const actor = await actorForProject(req.userId!, comparison.projectId, "comparison.delete", "Comparison not found");
   const reports = await prisma.report.findMany({
     where: { projectId: comparison.projectId },
     select: { content: true },
@@ -136,5 +138,9 @@ export const deleteComparison: RequestHandler = async (req, res) => {
       "Delete or regenerate reports that reference this comparison before deleting it",
     );
   await prisma.comparison.delete({ where: { id: comparison.id } });
+  await auditService.record({
+    organizationId: actor.organizationId, actorId: actor.userId, action: "comparison.deleted",
+    entityType: "Comparison", entityId: comparison.id,
+  });
   res.status(204).send();
 };
