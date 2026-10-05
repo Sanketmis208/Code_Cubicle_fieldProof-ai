@@ -58,6 +58,7 @@ export function UploadDialog({
   const [progress, setProgress] = useState(0);
   const [working, setWorking] = useState(false);
   const [autoAnalyze, setAutoAnalyze] = useState(true);
+  const [capturedBy, setCapturedBy] = useState("");
   const [dragging, setDragging] = useState(false);
   const qc = useQueryClient();
   const { data } = useQuery({
@@ -92,6 +93,8 @@ export function UploadDialog({
   };
   const drop = (event: DragEvent) => {
     event.preventDefault();
+    // Files dropped mid-upload would be marked uploaded without being sent.
+    if (working) return;
     setDragging(false);
     select(event.dataTransfer.files);
   };
@@ -106,32 +109,40 @@ export function UploadDialog({
       current.map((item) => ({ ...item, state: "uploading" })),
     );
     try {
-      const result = await assetsApi.upload(
-        projectId,
-        items.map((item) => item.file),
-        setProgress,
-      );
+      const queued = items.map((item) => item.file);
+      const result = await assetsApi.upload(projectId, queued, setProgress, capturedBy);
       setItems((current) =>
         current.map((item) => ({ ...item, state: "uploaded" })),
       );
+      // Map stored assets back to queue rows by file name (skipped duplicates have no asset).
+      const rowOf = (filename: string) => queued.findIndex((file) => file.name === filename);
+      // Only each event's best shots go to the AI: 40 burst photos cost three
+      // analyses, which keeps within the provider's per-minute token budget.
+      const representatives = new Set(result.clusters.flatMap((cluster) => cluster.representativeIds));
       let analysisFailures = 0;
       if (autoAnalyze) {
-        for (let index = 0; index < result.assets.length; index++) {
-          const asset = result.assets[index];
-          if (asset.resourceType === "RAW") continue;
-          updateState(index, "analyzing");
+        for (const asset of result.assets) {
+          if (asset.resourceType === "RAW" || (representatives.size && !representatives.has(asset.id))) continue;
+          const index = rowOf(asset.originalFilename);
+          if (index >= 0) updateState(index, "analyzing");
           try {
             await assetsApi.analyze(asset.id);
-            updateState(index, "ready");
+            if (index >= 0) updateState(index, "ready");
           } catch {
             analysisFailures += 1;
-            updateState(index, "failed");
+            if (index >= 0) updateState(index, "failed");
           }
         }
       }
+      const events = result.clusters.length;
       toast.success(
-        `${result.assets.length} asset${result.assets.length === 1 ? "" : "s"} added to the evidence library`,
+        `${result.assets.length} file${result.assets.length === 1 ? "" : "s"} added${events ? ` as ${events} event${events === 1 ? "" : "s"}` : ""}`,
       );
+      if (result.skipped.length)
+        toast(`${result.skipped.length} file${result.skipped.length === 1 ? " was" : "s were"} already in this project and not uploaded again`, { icon: "ℹ️", duration: 6000 });
+      const secondLook = result.assets.filter((asset) => asset.trustStatus === "NEEDS_SECOND_LOOK").length;
+      if (secondLook)
+        toast(`${secondLook} need${secondLook === 1 ? "s" : ""} a second look — the reasons are in the Trust tab and the review queue`, { icon: "🔎", duration: 7000 });
       if (analysisFailures)
         toast.error(
           `${analysisFailures} analysis ${analysisFailures === 1 ? "request was" : "requests were"} rate-limited or unavailable. The uploads are safe; retry them from the Evidence Library.`,
@@ -141,6 +152,8 @@ export function UploadDialog({
         qc.invalidateQueries({ queryKey: ["assets"] }),
         qc.invalidateQueries({ queryKey: ["summary"] }),
         qc.invalidateQueries({ queryKey: ["project", projectId] }),
+        qc.invalidateQueries({ queryKey: ["projects"] }),
+        qc.invalidateQueries({ queryKey: ["review-queue"] }),
       ]);
       release();
       setItems([]);
@@ -210,6 +223,21 @@ export function UploadDialog({
                 </option>
               ))}
             </select>
+          </div>
+          <div className="mt-4">
+            <label className="label" htmlFor="upload-captured-by">
+              Captured by{" "}
+              <span className="normal-case tracking-normal text-stone/60">(optional, when uploading for a field team)</span>
+            </label>
+            <input
+              id="upload-captured-by"
+              className="field"
+              value={capturedBy}
+              maxLength={120}
+              onChange={(event) => setCapturedBy(event.target.value)}
+              placeholder="e.g. Sunita, Bassi block volunteers"
+              disabled={working}
+            />
           </div>
           <label
             onDragEnter={(event) => {

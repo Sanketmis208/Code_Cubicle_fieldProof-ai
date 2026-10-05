@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FileText, Loader2, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BadgeCheck, FileText, Loader2, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Link, useSearchParams } from "react-router-dom";
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { projectsApi } from "@/api/projects";
 import { PageHeading } from "@/components/page-heading";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import type { ReportType } from "@/types";
+import type { Asset, ReportClaim, ReportContent, ReportType } from "@/types";
 
 const reportTypes: Array<[ReportType, string]> = [
   ["IMPACT_SUMMARY", "Impact summary"],
@@ -68,10 +68,11 @@ export function ReportsPage() {
       <article className="card overflow-hidden">
         <header className="bg-ink p-6 text-white md:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-lime">{report.reportType.replaceAll("_", " ")}</p><h1 className="mt-3 font-display text-3xl font-bold">{report.title}</h1><p className="mt-2 text-sm text-white/60">{report.project.name} · Generated {format(new Date(report.createdAt), "PPp")}</p></div>{can("report.delete") && <button aria-label="Delete report" onClick={() => window.confirm("Delete this generated report?") && remove.mutate(report.id)} className="rounded-xl border border-white/15 p-2.5 text-white/70 hover:bg-white/10"><Trash2 size={17} /></button>}</div></header>
         <div className="space-y-8 p-6 md:p-9">
+          <CitationBanner content={content} />
           <ReportSection title="Executive summary" text={content.executiveSummary} />
-          <div className="grid gap-6 lg:grid-cols-2"><ReportList title="Documented activities" items={content.documentedActivities} /><ReportList title="Visible observations" items={content.visibleObservations} /><ReportList title="Comparison findings" items={content.comparisonFindings} /><ReportList title="Evidence gaps" items={content.evidenceGaps} caution /></div>
+          <div className="grid gap-6 lg:grid-cols-2"><ReportList title="Documented activities" items={content.documentedActivities} evidence={report.evidence ?? []} order={content.evidenceIds} /><ReportList title="Visible observations" items={content.visibleObservations} evidence={report.evidence ?? []} order={content.evidenceIds} /><ReportList title="Comparison findings" items={content.comparisonFindings} evidence={report.evidence ?? []} order={content.evidenceIds} /><ReportList title="Evidence gaps" items={content.evidenceGaps} evidence={[]} order={[]} caution /></div>
           <section className="rounded-2xl bg-fog p-5"><h2 className="font-display text-lg font-bold">Methodology</h2><p className="mt-3 text-sm leading-7 text-stone">{content.methodologyNote}</p><p className="mt-4 flex items-start gap-2 text-xs leading-5 text-amber-800"><ShieldCheck size={15} className="mt-0.5 shrink-0" />{content.disclaimer}</p></section>
-          <section><h2 className="font-display text-lg font-bold">Source evidence</h2><p className="mt-1 text-sm text-stone">Every report statement remains connected to its original Cloudinary-backed record.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{report.evidence?.map((asset) => <Link key={asset.id} to={`/app/library?q=${encodeURIComponent(asset.originalFilename)}`} className="rounded-xl border border-black/[.07] p-4 transition hover:border-emerald-600/30 hover:bg-emerald-50/40"><p className="truncate text-sm font-bold">{asset.originalFilename}</p><p className="mt-1 text-xs text-stone">{format(new Date(asset.capturedAt || asset.createdAt), "PP")} · {asset.resourceType.toLowerCase()}</p><p className="mt-3 text-xs font-bold text-emerald-700">Open traceable evidence →</p></Link>)}</div></section>
+          <section><h2 className="font-display text-lg font-bold">Source evidence</h2><p className="mt-1 text-sm text-stone">Every report statement remains connected to its original Cloudinary-backed record.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{report.evidence?.map((asset) => <Link key={asset.id} to={`/app/evidence/${asset.id}`} className="rounded-xl border border-black/[.07] p-4 transition hover:border-emerald-600/30 hover:bg-emerald-50/40"><p className="truncate text-sm font-bold"><span className="mr-2 rounded-md bg-ink px-1.5 py-0.5 font-mono text-[10px] text-lime">E{content.evidenceIds.indexOf(asset.id) + 1}</span>{asset.originalFilename}</p><p className="mt-1 text-xs text-stone">{format(new Date(asset.capturedAt || asset.createdAt), "PP")} · {asset.resourceType.toLowerCase()}</p><p className="mt-3 text-xs font-bold text-emerald-700">Open evidence passport →</p></Link>)}</div></section>
         </div>
       </article>
     </>;
@@ -84,4 +85,30 @@ export function ReportsPage() {
 }
 
 function ReportSection({ title, text }: { title: string; text: string }) { return <section><h2 className="font-display text-xl font-bold">{title}</h2><p className="mt-3 text-sm leading-7 text-ink/80">{text}</p></section>; }
-function ReportList({ title, items, caution = false }: { title: string; items: string[]; caution?: boolean }) { return <section className={`rounded-2xl p-5 ${caution ? "bg-amber-50" : "bg-fog"}`}><h2 className="font-display text-lg font-bold">{title}</h2>{items.length ? <ul className="mt-3 space-y-2 text-sm leading-6 text-stone">{items.map((item) => <li key={item}>• {item}</li>)}</ul> : <p className="mt-3 text-sm text-stone">None documented.</p>}</section>; }
+/** "N claims cited · M unsupported" — the counter judges look for. Older reports have no citations. */
+function CitationBanner({ content }: { content: ReportContent }) {
+  if (!content.citations) return <p className="rounded-xl bg-fog px-4 py-3 text-xs text-stone">Generated before per-claim citations; statements link to the evidence list below.</p>;
+  const { supported, unsupported } = content.citations;
+  const selection = content.selection;
+  return (
+    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl px-5 py-4 text-sm ${unsupported ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>
+      <span className="flex items-center gap-2 font-semibold">{unsupported ? <AlertTriangle size={17} /> : <BadgeCheck size={17} />}{supported} claim{supported === 1 ? "" : "s"} cited · unsupported claims: {unsupported}</span>
+      {selection && <span className="text-xs opacity-80">Built from {selection.considered} of {selection.totalEvidence} evidence items ({selection.approved} reviewer-approved){selection.excludedNeedsSecondLook ? ` · ${selection.excludedNeedsSecondLook} awaiting a second look left out` : ""}{selection.excludedRejected ? ` · ${selection.excludedRejected} rejected left out` : ""}</span>}
+    </div>
+  );
+}
+
+function ReportList({ title, items, evidence, order, caution = false }: { title: string; items: ReportClaim[]; evidence: Asset[]; order: string[]; caution?: boolean }) {
+  const byId = new Map(evidence.map((asset) => [asset.id, asset]));
+  return <section className={`rounded-2xl p-5 ${caution ? "bg-amber-50" : "bg-fog"}`}><h2 className="font-display text-lg font-bold">{title}</h2>{items.length ? <ul className="mt-3 space-y-3 text-sm leading-6 text-stone">{items.map((item, index) => {
+    const text = typeof item === "string" ? item : item.text;
+    const ids = typeof item === "string" ? [] : item.evidenceIds;
+    const unsupported = typeof item !== "string" && !ids.length && !(item.comparisonIds?.length);
+    return <li key={`${index}-${text}`}>
+      <span>• {text}</span>
+      {ids.length > 0 && <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">{ids.map((id) => <Link key={id} to={`/app/evidence/${id}`} title={byId.get(id)?.originalFilename ?? "Evidence passport"} className="rounded-md bg-ink px-1.5 py-0.5 font-mono text-[10px] font-bold text-lime hover:bg-emerald-900">E{order.indexOf(id) + 1}</Link>)}</span>}
+      {typeof item !== "string" && (item.comparisonIds?.length ?? 0) > 0 && <span className="ml-2 rounded-md bg-emerald-700 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">comparison</span>}
+      {unsupported && <span className="ml-2 rounded-md bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">no evidence cited</span>}
+    </li>;
+  })}</ul> : <p className="mt-3 text-sm text-stone">None documented.</p>}</section>;
+}

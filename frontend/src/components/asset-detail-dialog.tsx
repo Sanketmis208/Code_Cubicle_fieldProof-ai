@@ -1,5 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  ScrollText,
   BrainCircuit,
   Calendar,
   Download,
@@ -14,11 +15,16 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
 import { assetsApi } from "@/api/assets";
 import type { Asset } from "@/types";
+import { Link } from "react-router-dom";
+import { passportApi } from "@/api/trust";
+import { cloudinaryDisplay } from "@/lib/cloudinary";
+import { ProvenanceFacts, TrustChecks } from "./trust-panel";
+import { ReviewBadge } from "./trust-badge";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
@@ -40,7 +46,7 @@ export function AssetDetailDialog({
 }) {
   const qc = useQueryClient();
   const { can } = useAuth();
-  const [tab, setTab] = useState<"overview" | "analysis" | "source">(
+  const [tab, setTab] = useState<"overview" | "trust" | "analysis" | "cloudinary" | "source">(
     "overview",
   );
   // Each mutation receives the asset it acts on, so a slow request finishing
@@ -109,11 +115,16 @@ export function AssetDetailDialog({
                 {asset.originalFilename}
               </p>
             </div>
-            <Dialog.Close asChild>
-              <button className="rounded-xl p-2 hover:bg-fog">
-                <X />
-              </button>
-            </Dialog.Close>
+            <div className="flex items-center gap-2">
+              <Link to={`/app/evidence/${asset.id}`} onClick={onClose} className="inline-flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-xs font-bold hover:bg-fog">
+                <ScrollText size={14} />Passport
+              </Link>
+              <Dialog.Close asChild>
+                <button aria-label="Close" className="rounded-xl p-2 hover:bg-fog">
+                  <X />
+                </button>
+              </Dialog.Close>
+            </div>
           </div>
           <div className="p-5 md:p-7">
             <div className="overflow-hidden rounded-2xl bg-ink">
@@ -125,7 +136,7 @@ export function AssetDetailDialog({
                 />
               ) : (
                 <img
-                  src={asset.secureUrl}
+                  src={cloudinaryDisplay(asset.secureUrl)}
                   alt={asset.description || asset.originalFilename}
                   className="max-h-[420px] w-full object-contain"
                 />
@@ -194,12 +205,14 @@ export function AssetDetailDialog({
                 <strong>Analysis failed:</strong> {asset.analysisError}
               </div>
             )}
-            <div role="tablist" aria-label="Evidence details" className="mt-6 flex gap-1 border-b border-black/10">
+            <div role="tablist" aria-label="Evidence details" className="mt-6 flex gap-1 overflow-x-auto border-b border-black/10">
               {(
                 [
                   ["overview", "Overview"],
+                  ["trust", "Trust"],
                   ["analysis", "AI Analysis"],
-                  ["source", "Source / Traceability"],
+                  ["cloudinary", "Cloudinary"],
+                  ["source", "Source"],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -208,7 +221,7 @@ export function AssetDetailDialog({
                   aria-selected={tab === key}
                   onClick={() => setTab(key)}
                   className={cn(
-                    "border-b-2 px-3 py-3 text-sm font-semibold",
+                    "shrink-0 border-b-2 px-3 py-3 text-sm font-semibold",
                     tab === key
                       ? "border-ink text-ink"
                       : "border-transparent text-stone",
@@ -334,6 +347,8 @@ export function AssetDetailDialog({
                 </p>
               </div>
             )}
+            {tab === "trust" && <TrustTab assetId={asset.id} />}
+            {tab === "cloudinary" && <CloudinaryTab assetId={asset.id} />}
             {tab === "source" && (
               <section className="mt-7">
                 <h3 className="font-display text-lg font-bold">
@@ -402,5 +417,73 @@ export function AssetDetailDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+function TrustTab({ assetId }: { assetId: string }) {
+  const { data, isLoading, isError } = useQuery({ queryKey: ["asset", assetId], queryFn: () => assetsApi.get(assetId) });
+  if (isLoading) return <div className="grid h-40 place-items-center"><Loader2 className="animate-spin text-stone" /></div>;
+  if (isError || !data) return <p className="mt-6 text-sm text-red-600">Trust details could not be loaded.</p>;
+  const { asset } = data;
+  return (
+    <section className="mt-6 space-y-6">
+      <ProvenanceFacts asset={asset} />
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-display text-lg font-bold">Why this score</h3>
+          <ReviewBadge status={asset.reviewStatus} />
+        </div>
+        <TrustChecks checks={asset.trustChecks ?? []} />
+        {asset.reviewNote && <p className="mt-3 rounded-xl bg-fog p-3 text-sm text-stone"><strong className="text-ink">Reviewer note:</strong> {asset.reviewNote}</p>}
+      </div>
+    </section>
+  );
+}
+
+/** "Powered by Cloudinary": what Cloudinary returned at upload and every delivery URL in use. */
+function CloudinaryTab({ assetId }: { assetId: string }) {
+  const { data, isLoading, isError } = useQuery({ queryKey: ["passport", assetId], queryFn: () => passportApi.get(assetId) });
+  if (isLoading) return <div className="grid h-40 place-items-center"><Loader2 className="animate-spin text-stone" /></div>;
+  if (isError || !data) return <p className="mt-6 text-sm text-red-600">Cloudinary details could not be loaded.</p>;
+  const { asset, delivery, derived } = data.passport;
+  const analysis = asset.cloudinaryAnalysis;
+  return (
+    <section className="mt-6 space-y-6 text-sm">
+      <div className="rounded-2xl bg-ink p-5 text-white">
+        <p className="eyebrow text-lime">Upload-time analysis</p>
+        <dl className="mt-4 grid grid-cols-2 gap-4">
+          <div><dt className="text-xs text-white/50">Perceptual hash</dt><dd className="mt-1 font-mono text-xs">{asset.phash ?? "not returned"}</dd></div>
+          <div><dt className="text-xs text-white/50">Focus quality</dt><dd className="mt-1 font-semibold">{asset.qualityScore != null ? `${Math.round(asset.qualityScore * 100)}%` : "not returned"}</dd></div>
+          <div><dt className="text-xs text-white/50">Faces detected</dt><dd className="mt-1 font-semibold">{asset.faceCount ?? "not returned"}</dd></div>
+          <div><dt className="text-xs text-white/50">Analyses requested</dt><dd className="mt-1 font-mono text-xs">{analysis?.requested?.join(", ") || "none"}</dd></div>
+        </dl>
+        <p className="mt-4 text-xs text-white/50">The hash finds reused photos, focus picks each event&apos;s best shots, and face boxes drive automatic blurring for anything public.</p>
+      </div>
+      <div>
+        <h3 className="font-display text-lg font-bold">Delivery transformations</h3>
+        <p className="mt-1 text-stone">Every rendition is a deterministic transformation of the original, so it can be reproduced and audited.</p>
+        <ul className="mt-3 space-y-2">
+          {delivery.map((entry) => (
+            <li key={entry.purpose} className="rounded-xl border border-black/[.07] p-3">
+              <div className="flex items-center justify-between gap-3"><p className="font-semibold">{entry.purpose}</p><a href={entry.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-emerald-700">Open</a></div>
+              <code className="mt-1 block break-all text-[11px] text-stone">{entry.transformation}</code>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {derived.length > 0 && (
+        <div>
+          <h3 className="font-display text-lg font-bold">Campaign files made from this evidence</h3>
+          <ul className="mt-3 space-y-2">
+            {derived.map((item) => (
+              <li key={item.id} className="rounded-xl border border-black/[.07] p-3">
+                <div className="flex items-center justify-between gap-3"><p className="font-semibold">{item.kind.replace("_", " ").toLowerCase()}</p><a href={item.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-emerald-700">Open</a></div>
+                <code className="mt-1 block max-h-20 overflow-y-auto break-all text-[11px] text-stone">{item.transformation}</code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }

@@ -2,6 +2,7 @@ import { Check, Download, Play, Star } from "lucide-react";
 import { format } from "date-fns";
 import type { Asset } from "@/types";
 import { AnalysisStatusBadge } from "./analysis-status";
+import { TrustBadge } from "./trust-badge";
 import { cloudinaryThumbnail } from "@/lib/cloudinary";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,7 @@ export function EvidenceCard({
           <span className="hidden text-xs text-stone sm:block">
             {format(new Date(asset.createdAt), "MMM d, yyyy")}
           </span>
+          {asset.trustStatus && asset.trustStatus !== "NOT_ASSESSED" && <TrustBadge status={asset.trustStatus} score={asset.trustScore} compact />}
           <AnalysisStatusBadge status={asset.aiStatus} />
         </button>
         {onFavorite && <button
@@ -129,6 +131,11 @@ export function EvidenceCard({
           <span className="absolute bottom-3 left-3">
             <AnalysisStatusBadge status={asset.aiStatus} />
           </span>
+          {asset.trustStatus && asset.trustStatus !== "NOT_ASSESSED" && (
+            <span className="absolute bottom-3 right-3">
+              <TrustBadge status={asset.trustStatus} score={asset.trustScore} compact className="shadow-sm" />
+            </span>
+          )}
         </div>
         <div className="p-4">
           <p className="truncate text-sm font-bold">{asset.originalFilename}</p>

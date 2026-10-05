@@ -14,6 +14,9 @@ export const listAssetsSchema = z.object({
       .transform((value) => value === "true")
       .optional(),
     sort: z.enum(["newest", "oldest", "filename"]).default("newest"),
+    trustStatus: z.enum(["NOT_ASSESSED", "STRONG", "MODERATE", "NEEDS_SECOND_LOOK"]).optional(),
+    reviewStatus: z.enum(["PENDING", "APPROVED", "REJECTED", "RESHOOT_REQUESTED"]).optional(),
+    captureSource: z.enum(["WEB_UPLOAD", "WEB_LIVE_CAPTURE", "APP_CAPTURE"]).optional(),
     from: z.coerce.date().transform((date) => {
       date.setUTCHours(0, 0, 0, 0);
       return date;

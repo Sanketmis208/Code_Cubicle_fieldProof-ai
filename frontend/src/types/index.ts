@@ -43,7 +43,66 @@ export type Asset = {
   createdAt: string; updatedAt: string;
   favorite: boolean;
   project: { id: string; name: string; location?: string | null; category?: string | null }; analysis?: AssetAnalysis | null;
+  // Trust layer (absent on very old API responses).
+  captureSource?: CaptureSource; sha256?: string | null; phash?: string | null;
+  exif?: ExifSummary | null; cloudinaryAnalysis?: CloudinaryAnalysis | null;
+  qualityScore?: number | null; faceCount?: number | null;
+  capturedAtSource?: 'EXIF' | 'STAMP' | 'DEVICE' | 'SERVER' | null; locationSource?: 'EXIF' | 'STAMP' | 'DEVICE' | null;
+  gpsAccuracyM?: number | null; capturedByName?: string | null;
+  trustScore?: number | null; trustStatus?: TrustStatus; trustEvaluatedAt?: string | null;
+  reviewStatus?: ReviewStatus; reviewedById?: string | null; reviewedAt?: string | null; reviewNote?: string | null;
+  publicToken?: string | null; siteId?: string | null; eventClusterId?: string | null;
+  eventCluster?: { id: string; assetCount: number; representativeIds: string[]; startedAt: string; endedAt: string } | null;
+  site?: { id: string; name: string } | null;
+  trustChecks?: TrustCheck[];
+  uploadedById?: string | null;
 };
+export type CaptureSource = 'WEB_UPLOAD' | 'WEB_LIVE_CAPTURE' | 'APP_CAPTURE';
+export type TrustStatus = 'NOT_ASSESSED' | 'STRONG' | 'MODERATE' | 'NEEDS_SECOND_LOOK';
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESHOOT_REQUESTED';
+export type ExifSummary = {
+  make?: string; model?: string; software?: string; capturedAt?: string; capturedAtRaw?: string; offset?: string;
+  offsetAssumed?: boolean; latitude?: number; longitude?: number; altitude?: number;
+};
+export type CloudinaryAnalysis = {
+  requested?: string[]; phash?: string | null; quality_analysis?: { focus?: number } | null; faces?: number[][] | null;
+  device?: { signatureValid?: boolean | null; mockLocation?: boolean | null; platform?: string | null } | null;
+};
+export type TrustCheck = {
+  id: string; check: string; result: 'PASS' | 'INFO' | 'WARN' | 'FAIL'; weight: number; hard: boolean;
+  message: string; details?: Record<string, unknown> | null; relatedAssetId?: string | null;
+};
+export type Site = { id: string; projectId: string; name: string; latitude: number; longitude: number; radiusM: number; _count?: { assets: number } };
+export type DerivedAsset = { id: string; projectId?: string | null; sourceAssetIds: string[]; kind: string; transformation: string; url: string; createdAt: string };
+export type DeliveryUrl = { purpose: string; transformation: string; url: string };
+export type Passport = {
+  asset: Asset & { uploadedBy?: { id: string; name: string } | null; trustChecks: TrustCheck[]; project: Asset['project'] & { organization?: { name: string } } };
+  reviewer: string | null;
+  derived: DerivedAsset[];
+  related: Array<Pick<Asset, 'id' | 'secureUrl' | 'resourceType' | 'cloudinaryPublicId' | 'originalFilename' | 'createdAt' | 'capturedAt'> & { project: { name: string } }>;
+  delivery: DeliveryUrl[];
+  publicPath: string | null;
+};
+export type PublicPassport = {
+  organization: string; project: string; resourceType: Asset['resourceType']; previewUrl: string | null; sha256?: string | null;
+  captureSource: CaptureSource; capturedAt?: string | null; capturedAtSource?: string | null; uploadedAt: string;
+  approximateLocation: { latitude: number | null; longitude: number | null } | null; locationSource?: string | null; site: string | null;
+  trustScore?: number | null; trustStatus: TrustStatus;
+  checks: Array<Pick<TrustCheck, 'check' | 'result' | 'message' | 'hard'>>;
+  review: { status: ReviewStatus; reviewedAt?: string | null };
+  observation: { summary: string; activity: string } | null;
+  derived: Array<Pick<DerivedAsset, 'kind' | 'transformation' | 'url' | 'createdAt'>>;
+  delivery: DeliveryUrl[];
+};
+export type ReviewItem = Asset & { flags: TrustCheck[]; ownUpload: boolean; uploadedBy?: { id: string; name: string } | null };
+export type ClaimVerdict = 'SUPPORTED' | 'PARTIAL' | 'UNSUPPORTED';
+export type ClaimResult = {
+  claim: string; verdict: ClaimVerdict;
+  intent: { activities: string[]; locationTerms: string[]; dateFrom: string | null; dateTo: string | null; quantity: { value: number; unit: string } | null; keywords: string[] };
+  counts: { matching: number; events: number; approved: number; trusted: number; needsSecondLook: number; insideSite: number };
+  gaps: string[]; evidence: Asset[];
+};
+export type StoryKind = 'SQUARE_CARD' | 'STORY' | 'BEFORE_AFTER';
 export type EvidenceSearchIntent = {
   queryText: string; projectIds: string[]; activities: string[]; tags: string[];
   signals: string[]; dateFrom: string | null; dateTo: string | null;
@@ -58,6 +117,7 @@ export type ProjectInsight = {
 export type ComparisonChanges = {
   visibleChanges: string[]; stableObservations: string[]; uncertainties: string[];
   evidenceLimitations: string[]; model?: string;
+  comparability?: { score: number; indicativeOnly: boolean; factors: Array<{ factor: string; impact: number; note: string }> };
 };
 export type ComparisonAsset = Pick<Asset, 'id'|'projectId'|'originalFilename'|'resourceType'|'secureUrl'|'cloudinaryPublicId'|'capturedAt'|'createdAt'|'locationName'|'activity'|'description'|'analysis'>;
 export type Comparison = {
@@ -67,11 +127,15 @@ export type Comparison = {
   beforeAsset: ComparisonAsset; afterAsset: ComparisonAsset;
 };
 export type ReportType = 'IMPACT_SUMMARY'|'PROJECT_UPDATE'|'DONOR_REPORT'|'CAMPAIGN_BRIEF'|'CUSTOM';
+/** Reports from before citations store plain strings; newer ones store cited claims. */
+export type ReportClaim = string | { text: string; evidenceIds: string[]; comparisonIds?: string[] };
 export type ReportContent = {
-  executiveSummary: string; documentedActivities: string[]; visibleObservations: string[];
-  comparisonFindings: string[]; evidenceGaps: string[]; methodologyNote: string;
+  executiveSummary: string; documentedActivities: ReportClaim[]; visibleObservations: ReportClaim[];
+  comparisonFindings: ReportClaim[]; evidenceGaps: string[]; methodologyNote: string;
   evidenceIds: string[]; comparisonIds: string[]; generatedAt: string;
   model?: string; disclaimer: string;
+  citations?: { supported: number; unsupported: number };
+  selection?: { totalEvidence: number; considered: number; approved: number; excludedRejected: number; excludedNeedsSecondLook: number };
 };
 export type Report = {
   id: string; projectId: string; title: string; reportType: ReportType;
@@ -85,7 +149,7 @@ export type Permission =
   | 'org.settings' | 'org.members.view' | 'org.members.manage' | 'org.invites.manage' | 'audit.view'
   | 'project.create' | 'project.edit' | 'project.delete' | 'project.members.manage'
   | 'evidence.upload' | 'evidence.analyze' | 'evidence.curate' | 'evidence.delete' | 'evidence.review'
-  | 'insight.generate' | 'comparison.create' | 'comparison.delete' | 'report.create' | 'report.delete';
+  | 'insight.generate' | 'comparison.create' | 'comparison.delete' | 'report.create' | 'report.delete' | 'story.create';
 export type Organization = {
   id: string; name: string; slug: string; type: OrgType; logoUrl?: string | null; personal: boolean; createdAt: string;
 };

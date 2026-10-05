@@ -32,12 +32,14 @@ import type { Asset } from "@/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { ProjectTeam } from "@/components/project-team";
+import { ProjectSites } from "@/components/project-sites";
 
-type Tab = "overview" | "evidence" | "timeline" | "comparisons" | "reports" | "team";
+type Tab = "overview" | "evidence" | "timeline" | "sites" | "comparisons" | "reports" | "team";
 const tabs: [Tab, string][] = [
   ["overview", "Overview"],
   ["evidence", "Evidence"],
   ["timeline", "Timeline"],
+  ["sites", "Sites"],
   ["comparisons", "Comparisons"],
   ["reports", "Reports"],
   ["team", "Team"],
@@ -486,6 +488,7 @@ export function ProjectDetailPage() {
           />
         )}
         {activeTab === "team" && <ProjectTeam projectId={p.id} />}
+        {activeTab === "sites" && <ProjectSites projectId={p.id} />}
       </div>
       <UploadDialog
         open={uploadOpen}

@@ -13,6 +13,12 @@ import { MediaLibraryPage } from "@/pages/media-library";
 import { ComparisonsPage } from "@/pages/comparisons";
 import { ReportsPage } from "@/pages/reports";
 import { OrganizationPage } from "@/pages/organization";
+import { ReviewPage } from "@/pages/review";
+import { EvidencePassportPage } from "@/pages/evidence-passport";
+import { PublicPassportPage } from "@/pages/public-passport";
+import { StoryStudioPage } from "@/pages/story-studio";
+import { ClaimsPage } from "@/pages/claims";
+import { CapturePage } from "@/pages/capture";
 
 export default function App() {
   return (
@@ -22,7 +28,11 @@ export default function App() {
         <Route path="sign-in" element={<SignInPage />} />
         <Route path="sign-up" element={<SignUpPage />} />
       </Route>
+      {/* Public: what a QR code on a campaign card opens. */}
+      <Route path="passport/:token" element={<PublicPassportPage />} />
       <Route element={<ProtectedRoute />}>
+        {/* Full-screen, phone-first; outside the workspace chrome. */}
+        <Route path="capture" element={<CapturePage />} />
         <Route path="app" element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="projects" element={<ProjectsPage />} />
@@ -34,6 +44,10 @@ export default function App() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="organization" element={<OrganizationPage />} />
+          <Route path="review" element={<ReviewPage />} />
+          <Route path="evidence/:id" element={<EvidencePassportPage />} />
+          <Route path="story" element={<StoryStudioPage />} />
+          <Route path="claims" element={<ClaimsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

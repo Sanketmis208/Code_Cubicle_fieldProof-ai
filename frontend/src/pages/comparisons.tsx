@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Link, useSearchParams } from "react-router-dom";
 import { useId, useState } from "react";
 import toast from "react-hot-toast";
+import { BeforeAfterSlider } from "@/components/before-after-slider";
 import { useAuth } from "@/contexts/auth-context";
 import { comparisonsApi } from "@/api/intelligence";
 import { projectsApi } from "@/api/projects";
@@ -11,7 +12,6 @@ import { assetsApi } from "@/api/assets";
 import { PageHeading } from "@/components/page-heading";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { cloudinaryThumbnail } from "@/lib/cloudinary";
 
 export function ComparisonsPage() {
   const [params, setParams] = useSearchParams();
@@ -102,11 +102,9 @@ export function ComparisonsPage() {
           {selectedProject && <p className="text-sm text-stone">Showing comparisons for <strong>{selectedProject.name}</strong></p>}
           {comparisons.data.comparisons.map((comparison) => (
             <article key={comparison.id} className="card overflow-hidden">
-              <div className="grid sm:grid-cols-2">
-                {[comparison.beforeAsset, comparison.afterAsset].map((asset, index) => <Link key={asset.id} to={`/app/library?q=${encodeURIComponent(asset.originalFilename)}`} className="relative aspect-[16/8] overflow-hidden bg-ink"><img src={cloudinaryThumbnail(asset.secureUrl, 900, 450, asset.resourceType === "VIDEO")} alt={asset.description || asset.originalFilename} className="size-full object-cover opacity-90" /><span className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white">{index ? "After" : "Before"} · {format(new Date(asset.capturedAt || asset.createdAt), "MMM d, yyyy")}</span><span className="absolute bottom-3 left-3 max-w-[85%] truncate rounded-lg bg-white/90 px-2.5 py-1 text-xs font-semibold">{asset.originalFilename}</span></Link>)}
-              </div>
+              <BeforeAfterSlider before={comparison.beforeAsset} after={comparison.afterAsset} /><div className="flex flex-wrap gap-2 border-b border-black/[.06] px-5 py-3 text-xs">{[comparison.beforeAsset, comparison.afterAsset].map((asset, index) => <Link key={asset.id} to={`/app/evidence/${asset.id}`} className="rounded-lg bg-fog px-2.5 py-1 font-semibold hover:bg-emerald-50">{index ? "After" : "Before"} · {format(new Date(asset.capturedAt || asset.createdAt), "MMM d, yyyy")} · passport →</Link>)}</div>
               <div className="p-5 md:p-6">
-                <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.12em] text-emerald-700">{comparison.project.name}</p><h2 className="mt-2 font-display text-xl font-bold">Visible-change analysis</h2></div><div className="flex items-center gap-3"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{comparison.confidence != null ? `${Math.round(comparison.confidence * 100)}% confidence` : "Unscored"}</span>{can("comparison.delete") && <button aria-label="Delete comparison" onClick={() => window.confirm("Delete this comparison? The source evidence will remain.") && remove.mutate(comparison.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}</div></div>
+                <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.12em] text-emerald-700">{comparison.project.name}</p><h2 className="mt-2 font-display text-xl font-bold">Visible-change analysis</h2></div><div className="flex items-center gap-3">{comparison.changes?.comparability && <span title={comparison.changes.comparability.factors.map((factor) => factor.note).join(" · ")} className={`rounded-full px-3 py-1 text-xs font-bold ${comparison.changes.comparability.indicativeOnly ? "bg-amber-100 text-amber-900" : "bg-sky-50 text-sky-900"}`}>Comparability {comparison.changes.comparability.score}{comparison.changes.comparability.indicativeOnly ? " · indicative only" : ""}</span>}<span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{comparison.confidence != null ? `${Math.round(comparison.confidence * 100)}% confidence` : "Unscored"}</span>{can("comparison.delete") && <button aria-label="Delete comparison" onClick={() => window.confirm("Delete this comparison? The source evidence will remain.") && remove.mutate(comparison.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}</div></div>
                 <p className="mt-4 text-sm leading-7 text-ink/80">{comparison.summary}</p>
                 <div className="mt-5 grid gap-4 lg:grid-cols-2"><FindingList title="Visible changes" items={comparison.changes?.visibleChanges ?? []} /><FindingList title="Uncertainties & limitations" items={[...(comparison.changes?.uncertainties ?? []), ...(comparison.changes?.evidenceLimitations ?? [])]} caution /></div>
               </div>

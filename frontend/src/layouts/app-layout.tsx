@@ -12,6 +12,10 @@ import {
   FolderKanban,
   LogOut,
   Building2,
+  ClipboardCheck,
+  Wand2,
+  SearchCheck,
+  Camera,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -25,20 +29,24 @@ import { cn } from "@/lib/utils";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { NoOrganizationPage } from "@/pages/no-organization";
 import { ROLE_INFO } from "@/lib/roles";
+import type { Permission } from "@/types";
 
-const nav = [
+const nav: Array<{ to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; permission?: Permission }> = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/app/projects", label: "Projects", icon: FolderKanban },
   { to: "/app/library", label: "Evidence Library", icon: Library },
+  { to: "/app/review", label: "Review", icon: ClipboardCheck, permission: "evidence.review" },
   { to: "/app/comparisons", label: "Comparisons", icon: GitCompareArrows },
   { to: "/app/reports", label: "Reports", icon: FileText },
+  { to: "/app/story", label: "Story Studio", icon: Wand2, permission: "story.create" },
+  { to: "/app/claims", label: "Claim checker", icon: SearchCheck },
   { to: "/app/organization", label: "Organization", icon: Building2 },
 ];
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
-  const { user, setUser, membership } = useAuth();
+  const { user, setUser, membership, can } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,7 +77,7 @@ export function AppLayout() {
         <div className="mt-6"><OrgSwitcher onNavigate={() => setMobileOpen(false)} /></div>
       </div>
       <nav className="flex-1 space-y-1.5 px-4">
-        {nav.map(({ to, label, icon: Icon, end }) => (
+        {nav.filter((item) => !item.permission || can(item.permission)).map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -89,15 +97,20 @@ export function AppLayout() {
           </NavLink>
         ))}
       </nav>
-      <div className="m-4 rounded-[24px] border border-white/10 bg-white/[.045] p-4 backdrop-blur">
-        <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-lime">
-          <span className="size-2 rounded-full bg-lime" />
-          System ready
+      {can("evidence.upload") ? (
+        <NavLink to="/capture" className="m-4 flex items-center gap-3 rounded-[24px] border border-lime/30 bg-lime/10 p-4 text-sm text-white transition hover:bg-lime/15">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-lime text-ink"><Camera size={18} /></span>
+          <span><span className="block font-semibold">Live capture</span><span className="text-xs text-white/50">Camera only · place and time recorded</span></span>
+        </NavLink>
+      ) : (
+        <div className="m-4 rounded-[24px] border border-white/10 bg-white/[.045] p-4 backdrop-blur">
+          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-lime">
+            <span className="size-2 rounded-full bg-lime" />
+            System ready
+          </div>
+          <p className="text-xs leading-5 text-white/50">Evidence from your team appears in this workspace.</p>
         </div>
-        <p className="text-xs leading-5 text-white/50">
-          Upload and analysis activity will appear in your workspace.
-        </p>
-      </div>
+      )}
     </>
   );
   return (

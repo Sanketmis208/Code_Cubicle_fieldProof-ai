@@ -42,6 +42,9 @@ export const listAssets: RequestHandler = async (req, res) => {
     to,
     page,
     limit,
+    trustStatus,
+    reviewStatus,
+    captureSource,
   } = (req.validatedQuery ?? req.query) as Record<string, any>;
   const actor = await actorFromRequest(req);
   const evidenceDateRange = {
@@ -53,6 +56,9 @@ export const listAssets: RequestHandler = async (req, res) => {
     ...(projectId && { projectId }),
     ...(resourceType && { resourceType }),
     ...(favorite !== undefined && { favorite }),
+    ...(trustStatus && { trustStatus }),
+    ...(reviewStatus && { reviewStatus }),
+    ...(captureSource && { captureSource }),
     ...(activity && { activity: { contains: activity, mode: "insensitive" } }),
     // Date range and keyword search are both OR-groups; they must be ANDed,
     // otherwise the second spread overwrites the first and drops the filter.
