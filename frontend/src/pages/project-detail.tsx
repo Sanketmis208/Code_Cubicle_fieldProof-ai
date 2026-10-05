@@ -29,7 +29,7 @@ import { UploadDialog } from "@/components/upload-dialog";
 import { EvidenceCard } from "@/components/evidence-card";
 import { AssetDetailDialog } from "@/components/asset-detail-dialog";
 import type { Asset } from "@/types";
-import { cn } from "@/lib/utils";
+import { calendarDay, cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { ProjectTeam } from "@/components/project-team";
 import { ProjectSites } from "@/components/project-sites";
@@ -63,6 +63,9 @@ export function ProjectDetailPage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["projects"] });
       void qc.invalidateQueries({ queryKey: ["summary"] });
+      // Its evidence, comparisons and reports are gone too.
+      for (const key of ["assets", "comparisons", "reports", "review-queue", "stories"])
+        void qc.invalidateQueries({ queryKey: [key] });
       toast.success("Project deleted");
       navigate("/app/projects");
     },
@@ -166,9 +169,9 @@ export function ProjectDetailPage() {
             </span>
             <span className="flex items-center gap-2">
               <CalendarDays size={16} className="text-lime" />
-              {format(new Date(p.startDate), "MMM d, yyyy")}{" "}
+              {format(calendarDay(p.startDate), "MMM d, yyyy")}{" "}
               {p.endDate
-                ? `– ${format(new Date(p.endDate), "MMM d, yyyy")}`
+                ? `– ${format(calendarDay(p.endDate), "MMM d, yyyy")}`
                 : "– Ongoing"}
             </span>
           </div>
@@ -291,8 +294,8 @@ export function ProjectDetailPage() {
                 <div>
                   <dt className="label">Project period</dt>
                   <dd className="text-sm font-semibold">
-                    {format(new Date(p.startDate), "PP")} —{" "}
-                    {p.endDate ? format(new Date(p.endDate), "PP") : "Ongoing"}
+                    {format(calendarDay(p.startDate), "PP")} —{" "}
+                    {p.endDate ? format(calendarDay(p.endDate), "PP") : "Ongoing"}
                   </dd>
                 </div>
                 <div>

@@ -23,7 +23,7 @@ export function ComparisonsPage() {
   const projects = useQuery({ queryKey: ["projects"], queryFn: projectsApi.list });
   const assets = useQuery({
     queryKey: ["comparison-assets", projectId],
-    queryFn: () => assetsApi.list({ projectId, limit: 48, sort: "oldest" }),
+    queryFn: () => assetsApi.list({ projectId, limit: 100, sort: "newest" }),
     enabled: Boolean(projectId),
   });
   const comparisons = useQuery({

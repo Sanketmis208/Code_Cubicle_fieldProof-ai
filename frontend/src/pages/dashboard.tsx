@@ -255,7 +255,7 @@ export function DashboardPage() {
                     className="flex items-center gap-3"
                   >
                     <img
-                      src={cloudinaryThumbnail(asset.secureUrl, 96, 96)}
+                      src={cloudinaryThumbnail(asset.secureUrl, 96, 96, asset.resourceType === "VIDEO")}
                       alt=""
                       className="size-10 rounded-lg bg-fog object-cover"
                     />

@@ -161,7 +161,7 @@ export function EvidenceCard({
           "absolute left-3 top-3 grid size-7 place-items-center rounded-lg border backdrop-blur transition",
           selected
             ? "border-emerald-600 bg-emerald-600 text-white"
-            : "border-white/60 bg-black/30 text-white opacity-0 group-hover:opacity-100",
+            : "border-white/60 bg-black/30 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           selectionMode && "opacity-100",
         )}
       >

@@ -26,7 +26,8 @@ export const listAssetsSchema = z.object({
       return date;
     }).optional(),
     page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().min(1).max(48).default(24),
+    // 100 lets pickers (e.g. comparisons) offer recent evidence in one request.
+    limit: z.coerce.number().int().min(1).max(100).default(24),
   }),
 });
 export const favoriteAssetSchema = z.object({

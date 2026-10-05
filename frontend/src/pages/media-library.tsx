@@ -12,7 +12,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { assetsApi, type AssetFilters } from "@/api/assets";
@@ -32,7 +32,8 @@ export function MediaLibraryPage() {
   const [filters, setFilters] = useState<AssetFilters>({
     page: 1,
     limit: 24,
-    search: initialSearch,
+    // undefined (not "") so the first request matches the URL effect's key and runs once.
+    search: initialSearch || undefined,
     sort: "newest",
   });
   const [search, setSearch] = useState(initialSearch);
@@ -61,10 +62,23 @@ export function MediaLibraryPage() {
       assetsApi.naturalSearch(query, page),
     onError: (error) => toast.error(error.message),
   });
+  // Changing a filter means "show me the library", so drop any AI answer on screen.
+  const filterKey = JSON.stringify({ ...filters, page: undefined });
+  const resetAiSearch = useRef(aiSearch.reset);
+  resetAiSearch.current = aiSearch.reset;
+  useEffect(() => {
+    resetAiSearch.current();
+  }, [filterKey]);
+  // AI results are a one-off answer, not a cached query; edits made while
+  // viewing them are patched in locally so the star reflects the change.
+  const [aiPatches, setAiPatches] = useState<Record<string, Asset>>({});
   const favorite = useMutation({
     mutationFn: ({ id, value }: { id: string; value: boolean }) =>
       assetsApi.favorite(id, value),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["assets"] }),
+    onSuccess: ({ asset }) => {
+      setAiPatches((current) => ({ ...current, [asset.id]: asset }));
+      void qc.invalidateQueries({ queryKey: ["assets"] });
+    },
     onError: (e) => toast.error(e.message),
   });
   const activeFilters = useMemo(
@@ -139,7 +153,7 @@ export function MediaLibraryPage() {
     }
   };
   const displayed = aiSearch.data ?? data;
-  const assets = displayed?.assets || [];
+  const assets = (displayed?.assets || []).map((asset) => aiPatches[asset.id] ?? asset);
   const busy = isLoading || aiSearch.isPending;
   const hasError = isError || aiSearch.isError;
   const hasFilters = Boolean(filters.search || activeFilters.length || aiSearch.data);

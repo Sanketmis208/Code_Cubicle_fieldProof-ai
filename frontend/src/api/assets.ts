@@ -33,6 +33,9 @@ export const assetsApi = {
       else reject(toApiError(request.status, response, 'Upload failed'));
     };
     request.onerror = () => reject(new Error('Upload failed because the network connection was interrupted'));
+    // A stalled upload must not lock the dialog forever.
+    request.timeout = 10 * 60 * 1000;
+    request.ontimeout = () => reject(new Error('Upload timed out. Check the connection and try again.'));
     request.send(body);
   }),
 };
