@@ -29,7 +29,7 @@ function SkeletonCard() {
 }
 
 export function DashboardPage() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["summary"],
     queryFn: projectsApi.summary,
@@ -101,12 +101,12 @@ export function DashboardPage() {
             A live view of projects, evidence, and analysis coverage.
           </p>
         </div>
-        <Link className="relative mt-6 sm:mt-0" to="/app/projects/new">
+        {can("project.create") && <Link className="relative mt-6 sm:mt-0" to="/app/projects/new">
           <Button variant="lime">
             <Plus size={17} />
             New project
           </Button>
-        </Link>
+        </Link>}
       </div>
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         {summaryLoading

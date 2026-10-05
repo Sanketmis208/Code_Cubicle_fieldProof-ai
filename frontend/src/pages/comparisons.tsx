@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Link, useSearchParams } from "react-router-dom";
 import { useId, useState } from "react";
 import toast from "react-hot-toast";
+import { useAuth } from "@/contexts/auth-context";
 import { comparisonsApi } from "@/api/intelligence";
 import { projectsApi } from "@/api/projects";
 import { assetsApi } from "@/api/assets";
@@ -29,6 +30,7 @@ export function ComparisonsPage() {
     queryKey: ["comparisons", projectId],
     queryFn: () => comparisonsApi.list(projectId || undefined),
   });
+  const { can } = useAuth();
   const create = useMutation({
     mutationFn: comparisonsApi.create,
     onSuccess: ({ cached }) => {
@@ -62,9 +64,9 @@ export function ComparisonsPage() {
         eyebrow="Measure visible change"
         title="Before & after"
         description="Compare two traceable evidence records without turning visual observations into unsupported impact claims."
-        action={<Button onClick={() => setComposerOpen((value) => !value)}><Plus size={16} />New comparison</Button>}
+        action={can("comparison.create") ? <Button onClick={() => setComposerOpen((value) => !value)}><Plus size={16} />New comparison</Button> : undefined}
       />
-      {composerOpen && (
+      {composerOpen && can("comparison.create") && (
         <section className="card mb-6 p-5 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div><h2 className="font-display text-lg font-bold">Create visible-change analysis</h2><p className="mt-1 text-sm text-stone">Choose chronological evidence from the same project. Videos use a representative frame.</p></div>
@@ -94,7 +96,7 @@ export function ComparisonsPage() {
         </section>
       )}
       {comparisons.isLoading ? <div className="grid h-56 place-items-center"><Loader2 className="animate-spin text-stone" /></div> : comparisons.isError ? <div className="card p-8 text-center text-sm text-red-700">Comparisons could not be loaded. Please retry.</div> : !comparisons.data?.comparisons.length ? (
-        <EmptyState icon={GitCompareArrows} title="No comparisons yet" description="Create a project, collect at least two dated evidence records, and compare what is visibly different." action={<Button onClick={() => setComposerOpen(true)}><Plus size={16} />Create first comparison</Button>} />
+        <EmptyState icon={GitCompareArrows} title="No comparisons yet" description="Create a project, collect at least two dated evidence records, and compare what is visibly different." action={can("comparison.create") ? <Button onClick={() => setComposerOpen(true)}><Plus size={16} />Create first comparison</Button> : undefined} />
       ) : (
         <div className="space-y-5">
           {selectedProject && <p className="text-sm text-stone">Showing comparisons for <strong>{selectedProject.name}</strong></p>}
@@ -104,7 +106,7 @@ export function ComparisonsPage() {
                 {[comparison.beforeAsset, comparison.afterAsset].map((asset, index) => <Link key={asset.id} to={`/app/library?q=${encodeURIComponent(asset.originalFilename)}`} className="relative aspect-[16/8] overflow-hidden bg-ink"><img src={cloudinaryThumbnail(asset.secureUrl, 900, 450, asset.resourceType === "VIDEO")} alt={asset.description || asset.originalFilename} className="size-full object-cover opacity-90" /><span className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white">{index ? "After" : "Before"} · {format(new Date(asset.capturedAt || asset.createdAt), "MMM d, yyyy")}</span><span className="absolute bottom-3 left-3 max-w-[85%] truncate rounded-lg bg-white/90 px-2.5 py-1 text-xs font-semibold">{asset.originalFilename}</span></Link>)}
               </div>
               <div className="p-5 md:p-6">
-                <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.12em] text-emerald-700">{comparison.project.name}</p><h2 className="mt-2 font-display text-xl font-bold">Visible-change analysis</h2></div><div className="flex items-center gap-3"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{comparison.confidence != null ? `${Math.round(comparison.confidence * 100)}% confidence` : "Unscored"}</span><button aria-label="Delete comparison" onClick={() => window.confirm("Delete this comparison? The source evidence will remain.") && remove.mutate(comparison.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button></div></div>
+                <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.12em] text-emerald-700">{comparison.project.name}</p><h2 className="mt-2 font-display text-xl font-bold">Visible-change analysis</h2></div><div className="flex items-center gap-3"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{comparison.confidence != null ? `${Math.round(comparison.confidence * 100)}% confidence` : "Unscored"}</span>{can("comparison.delete") && <button aria-label="Delete comparison" onClick={() => window.confirm("Delete this comparison? The source evidence will remain.") && remove.mutate(comparison.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}</div></div>
                 <p className="mt-4 text-sm leading-7 text-ink/80">{comparison.summary}</p>
                 <div className="mt-5 grid gap-4 lg:grid-cols-2"><FindingList title="Visible changes" items={comparison.changes?.visibleChanges ?? []} /><FindingList title="Uncertainties & limitations" items={[...(comparison.changes?.uncertainties ?? []), ...(comparison.changes?.evidenceLimitations ?? [])]} caution /></div>
               </div>

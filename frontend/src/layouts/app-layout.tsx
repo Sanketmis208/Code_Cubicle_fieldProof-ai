@@ -11,6 +11,7 @@ import {
   FileText,
   FolderKanban,
   LogOut,
+  Building2,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -21,6 +22,9 @@ import { Brand } from "@/components/brand";
 import { useAuth } from "@/contexts/auth-context";
 import { authApi } from "@/api/auth";
 import { cn } from "@/lib/utils";
+import { OrgSwitcher } from "@/components/org-switcher";
+import { NoOrganizationPage } from "@/pages/no-organization";
+import { ROLE_INFO } from "@/lib/roles";
 
 const nav = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
@@ -28,12 +32,13 @@ const nav = [
   { to: "/app/library", label: "Evidence Library", icon: Library },
   { to: "/app/comparisons", label: "Comparisons", icon: GitCompareArrows },
   { to: "/app/reports", label: "Reports", icon: FileText },
+  { to: "/app/organization", label: "Organization", icon: Building2 },
 ];
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
-  const { user, setUser } = useAuth();
+  const { user, setUser, membership } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,6 +66,7 @@ export function AppLayout() {
       <div className="px-6 py-8">
         <Brand light />
         <p className="mt-3 pl-12 text-[9px] font-bold uppercase tracking-[.22em] text-white/25">Evidence operating system</p>
+        <div className="mt-6"><OrgSwitcher onNavigate={() => setMobileOpen(false)} /></div>
       </div>
       <nav className="flex-1 space-y-1.5 px-4">
         {nav.map(({ to, label, icon: Icon, end }) => (
@@ -177,7 +183,7 @@ export function AppLayout() {
                       {user?.name}
                     </span>
                     <span className="text-xs text-stone">
-                      {user?.organizationName || "Impact team"}
+                      {membership ? `${ROLE_INFO[membership.role].label} · ${membership.organization.name}` : "No organization"}
                     </span>
                   </span>
                   <ChevronDown size={15} />
@@ -210,7 +216,7 @@ export function AppLayout() {
         </header>
         <main className="relative p-4 md:p-8 lg:p-10">
           <div key={location.pathname} className="route-enter mx-auto max-w-[1560px]">
-            <Outlet />
+            {membership ? <Outlet /> : <NoOrganizationPage />}
           </div>
         </main>
       </div>

@@ -12,6 +12,7 @@ import { SettingsPage } from "@/pages/foundation";
 import { MediaLibraryPage } from "@/pages/media-library";
 import { ComparisonsPage } from "@/pages/comparisons";
 import { ReportsPage } from "@/pages/reports";
+import { OrganizationPage } from "@/pages/organization";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="comparisons" element={<ComparisonsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="organization" element={<OrganizationPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

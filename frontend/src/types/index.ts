@@ -78,3 +78,33 @@ export type Report = {
   content: ReportContent; createdAt: string; updatedAt: string;
   project: { id: string; name: string }; evidence?: Asset[];
 };
+
+export type OrgRole = 'OWNER' | 'ADMIN' | 'PROGRAM_MANAGER' | 'VERIFIER' | 'FIELD_WORKER' | 'VIEWER';
+export type OrgType = 'NGO' | 'CSR' | 'GOVERNMENT' | 'SOCIAL_ENTERPRISE' | 'OTHER';
+export type Permission =
+  | 'org.settings' | 'org.members.view' | 'org.members.manage' | 'org.invites.manage' | 'audit.view'
+  | 'project.create' | 'project.edit' | 'project.delete' | 'project.members.manage'
+  | 'evidence.upload' | 'evidence.analyze' | 'evidence.curate' | 'evidence.delete' | 'evidence.review'
+  | 'insight.generate' | 'comparison.create' | 'comparison.delete' | 'report.create' | 'report.delete';
+export type Organization = {
+  id: string; name: string; slug: string; type: OrgType; logoUrl?: string | null; personal: boolean; createdAt: string;
+};
+export type Membership = { organization: Organization; role: OrgRole; permissions: Permission[]; allProjects: boolean };
+export type Session = { user: User; memberships: Membership[] };
+export type OrgMember = {
+  role: OrgRole; status: 'ACTIVE' | 'SUSPENDED'; createdAt: string; assignedProjects: number;
+  user: { id: string; name: string; email: string };
+};
+export type InviteStatus = 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED';
+export type Invite = {
+  id: string; codeHint: string; role: OrgRole; email?: string | null; expiresAt: string; maxUses: number;
+  usedCount: number; revokedAt?: string | null; createdAt: string; status: InviteStatus;
+};
+export type AuditEntry = {
+  id: string; seq: number; actorId?: string | null; actorName?: string | null; action: string; entityType: string;
+  entityId?: string | null; metadata?: Record<string, unknown> | null; hash: string; createdAt: string;
+};
+export type ProjectTeam = {
+  assigned: Array<{ user: { id: string; name: string; email?: string }; role: OrgRole | null; assignedAt: string }>;
+  orgWide: Array<{ user: { id: string; name: string; email?: string }; role: OrgRole }>;
+};

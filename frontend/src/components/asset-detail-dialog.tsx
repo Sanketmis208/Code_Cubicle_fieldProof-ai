@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import { format } from "date-fns";
 import { assetsApi } from "@/api/assets";
 import type { Asset } from "@/types";
+import { useAuth } from "@/contexts/auth-context";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -38,6 +39,7 @@ export function AssetDetailDialog({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { can } = useAuth();
   const [tab, setTab] = useState<"overview" | "analysis" | "source">(
     "overview",
   );
@@ -141,7 +143,7 @@ export function AssetDetailDialog({
                   : asset.aiStatus.replace("_", " ").toLowerCase()}
               </span>
               <div className="flex gap-2">
-                <Button
+                {can("evidence.curate") && <Button
                   variant="outline"
                   size="sm"
                   onClick={() => favorite.mutate(asset)}
@@ -153,8 +155,8 @@ export function AssetDetailDialog({
                     }
                   />
                   {asset.favorite ? "Favorited" : "Favorite"}
-                </Button>
-                {asset.resourceType !== "RAW" && (
+                </Button>}
+                {asset.resourceType !== "RAW" && can("evidence.analyze") && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -175,7 +177,7 @@ export function AssetDetailDialog({
                         : "Analyze image"}
                   </Button>
                 )}
-                <Button
+                {can("evidence.delete") && <Button
                   variant="outline"
                   size="sm"
                   className="text-red-600"
@@ -184,7 +186,7 @@ export function AssetDetailDialog({
                 >
                   <Trash2 size={15} />
                   Delete
-                </Button>
+                </Button>}
               </div>
             </div>
             {asset.aiStatus === "FAILED" && asset.analysisError && (

@@ -21,6 +21,7 @@ import { PageHeading } from "@/components/page-heading";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { UploadDialog } from "@/components/upload-dialog";
+import { useAuth } from "@/contexts/auth-context";
 import { AssetDetailDialog } from "@/components/asset-detail-dialog";
 import { EvidenceCard } from "@/components/evidence-card";
 import type { Asset } from "@/types";
@@ -36,6 +37,7 @@ export function MediaLibraryPage() {
   });
   const [search, setSearch] = useState(initialSearch);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const { can } = useAuth();
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -148,10 +150,12 @@ export function MediaLibraryPage() {
         title="Evidence Library"
         description="Search, curate, and analyze traceable field media across every project."
         action={
-          <Button onClick={() => setUploadOpen(true)}>
-            <Plus size={17} />
-            Upload evidence
-          </Button>
+          can("evidence.upload") ? (
+            <Button onClick={() => setUploadOpen(true)}>
+              <Plus size={17} />
+              Upload evidence
+            </Button>
+          ) : undefined
         }
       />
       <section className="card mb-5 p-4">
@@ -379,7 +383,11 @@ export function MediaLibraryPage() {
           <Button
             className="mt-4"
             variant="outline"
-            onClick={() => void qc.invalidateQueries({ queryKey: ["assets"] })}
+            onClick={() => {
+              // A failed AI search otherwise keeps the whole library in the error state.
+              aiSearch.reset();
+              void qc.invalidateQueries({ queryKey: ["assets"] });
+            }}
           >
             Try again
           </Button>
@@ -402,12 +410,12 @@ export function MediaLibraryPage() {
               <Button variant="outline" onClick={clearFilters}>
                 Clear filters
               </Button>
-            ) : (
+            ) : can("evidence.upload") ? (
               <Button onClick={() => setUploadOpen(true)}>
                 <Plus size={16} />
                 Upload first evidence
               </Button>
-            )
+            ) : undefined
           }
         />
       ) : (
@@ -428,9 +436,9 @@ export function MediaLibraryPage() {
                 selectionMode={selectedIds.size > 0}
                 onOpen={() => setSelectedAsset(asset)}
                 onToggle={() => toggle(asset.id)}
-                onFavorite={() =>
+                onFavorite={can("evidence.curate") ? () =>
                   favorite.mutate({ id: asset.id, value: !asset.favorite })
-                }
+                : undefined}
               />
             ))}
           </div>
@@ -440,7 +448,7 @@ export function MediaLibraryPage() {
                 variant="outline"
                 size="sm"
                 disabled={displayed.pagination.page <= 1}
-                onClick={() => aiSearch.data ? aiSearch.mutate({ query: search, page: displayed.pagination.page - 1 }) : setFilters((f) => ({ ...f, page: (f.page || 1) - 1 }))}
+                onClick={() => aiSearch.data ? aiSearch.mutate({ query: aiSearch.variables?.query ?? search, page: displayed.pagination.page - 1 }) : setFilters((f) => ({ ...f, page: (f.page || 1) - 1 }))}
               >
                 Previous
               </Button>
@@ -451,7 +459,7 @@ export function MediaLibraryPage() {
                 variant="outline"
                 size="sm"
                 disabled={displayed.pagination.page >= displayed.pagination.pages}
-                onClick={() => aiSearch.data ? aiSearch.mutate({ query: search, page: displayed.pagination.page + 1 }) : setFilters((f) => ({ ...f, page: (f.page || 1) + 1 }))}
+                onClick={() => aiSearch.data ? aiSearch.mutate({ query: aiSearch.variables?.query ?? search, page: displayed.pagination.page + 1 }) : setFilters((f) => ({ ...f, page: (f.page || 1) + 1 }))}
               >
                 Next
               </Button>

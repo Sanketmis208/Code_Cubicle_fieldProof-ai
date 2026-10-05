@@ -1,4 +1,4 @@
-import { API_URL, api } from './client';
+import { API_URL, api, organizationHeaders, toApiError } from './client';
 import type { Asset, EvidenceSearchIntent } from '@/types';
 
 export type AssetFilters = { projectId?: string; resourceType?: string; activity?: string; search?: string; favorite?: boolean; sort?: 'newest' | 'oldest' | 'filename'; from?: string; to?: string; page?: number; limit?: number };
@@ -17,11 +17,13 @@ export const assetsApi = {
   upload: (projectId: string, files: File[], onProgress: (progress: number) => void) => new Promise<{ assets: Asset[] }>((resolve, reject) => {
     const body = new FormData(); body.append('projectId', projectId); files.forEach(file => body.append('files', file));
     const request = new XMLHttpRequest();
-    request.open('POST', `${API_URL}/assets/upload`); request.withCredentials = true;
+    // projectId in the URL lets the server check access before receiving the files.
+    request.open('POST', `${API_URL}/assets/upload?projectId=${encodeURIComponent(projectId)}`); request.withCredentials = true;
+    Object.entries(organizationHeaders()).forEach(([key, value]) => request.setRequestHeader(key, value));
     request.upload.onprogress = event => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)); };
-    request.onload = () => { let response: { assets?: Asset[]; error?: { message?: string } } = {}; try { response = JSON.parse(request.responseText) as typeof response; } catch { /* handled below */ }
+    request.onload = () => { let response: { assets?: Asset[]; error?: { message?: string; code?: string } } = {}; try { response = JSON.parse(request.responseText) as typeof response; } catch { /* handled below */ }
       if (request.status >= 200 && request.status < 300 && response.assets) resolve({ assets: response.assets });
-      else reject(new Error(response.error?.message || 'Upload failed'));
+      else reject(toApiError(request.status, response, 'Upload failed'));
     };
     request.onerror = () => reject(new Error('Upload failed because the network connection was interrupted'));
     request.send(body);

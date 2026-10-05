@@ -30,14 +30,17 @@ import { EvidenceCard } from "@/components/evidence-card";
 import { AssetDetailDialog } from "@/components/asset-detail-dialog";
 import type { Asset } from "@/types";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
+import { ProjectTeam } from "@/components/project-team";
 
-type Tab = "overview" | "evidence" | "timeline" | "comparisons" | "reports";
+type Tab = "overview" | "evidence" | "timeline" | "comparisons" | "reports" | "team";
 const tabs: [Tab, string][] = [
   ["overview", "Overview"],
   ["evidence", "Evidence"],
   ["timeline", "Timeline"],
   ["comparisons", "Comparisons"],
   ["reports", "Reports"],
+  ["team", "Team"],
 ];
 
 export function ProjectDetailPage() {
@@ -48,6 +51,7 @@ export function ProjectDetailPage() {
   const [selected, setSelected] = useState<Asset | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { can } = useAuth();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["project", id],
     queryFn: () => projectsApi.get(id!),
@@ -168,7 +172,7 @@ export function ProjectDetailPage() {
           </div>
         </div>
         <div className="absolute right-5 top-5 flex gap-2">
-          <Link to={`/app/projects/${p.id}/edit`}>
+          {can("project.edit") && <Link to={`/app/projects/${p.id}/edit`}>
             <Button
               variant="outline"
               size="sm"
@@ -177,8 +181,8 @@ export function ProjectDetailPage() {
               <Edit3 size={15} />
               Edit
             </Button>
-          </Link>
-          <DropdownMenu.Root>
+          </Link>}
+          {(can("project.edit") || can("project.delete")) && <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button
                 aria-label="Project actions"
@@ -194,7 +198,7 @@ export function ProjectDetailPage() {
                 align="end"
                 className="z-50 min-w-44 rounded-xl bg-white p-1.5 shadow-soft"
               >
-                {p.status !== "ARCHIVED" && (
+                {p.status !== "ARCHIVED" && can("project.edit") && (
                   <DropdownMenu.Item
                     onSelect={() => archive.mutate()}
                     className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none hover:bg-fog"
@@ -203,16 +207,16 @@ export function ProjectDetailPage() {
                     Archive project
                   </DropdownMenu.Item>
                 )}
-                <DropdownMenu.Item
+                {can("project.delete") && <DropdownMenu.Item
                   onSelect={del}
                   className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 outline-none hover:bg-red-50"
                 >
                   <Trash2 size={15} />
                   Delete project
-                </DropdownMenu.Item>
+                </DropdownMenu.Item>}
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+          </DropdownMenu.Root>}
         </div>
       </section>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -335,14 +339,14 @@ export function ProjectDetailPage() {
                   <div><dt className="text-xs text-stone">Quality flags</dt><dd className="mt-1 font-display text-xl font-bold">{p.workspaceMetrics.coverage.qualityFlags}</dd></div>
                 </dl>
               )}
-              <Button
+              {can("evidence.upload") && <Button
                 className="mt-6 w-full"
                 variant="outline"
                 onClick={() => setUploadOpen(true)}
               >
                 <Plus size={16} />
                 Add evidence
-              </Button>
+              </Button>}
             </section>
             <section className="card p-6 xl:col-span-2">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -351,10 +355,10 @@ export function ProjectDetailPage() {
                   <h2 className="mt-1 font-display text-lg font-bold">AI project overview</h2>
                   <p className="mt-1 text-xs text-stone">Generated only from stored project metadata and persisted media analyses.</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => generateInsight.mutate()} disabled={generateInsight.isPending || !evidence.length}>
+                {can("insight.generate") && <Button variant="outline" size="sm" onClick={() => generateInsight.mutate()} disabled={generateInsight.isPending || !evidence.length}>
                   {generateInsight.isPending ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                   {p.insight ? "Refresh summary" : "Generate summary"}
-                </Button>
+                </Button>}
               </div>
               {p.insight ? (
                 <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
@@ -386,10 +390,10 @@ export function ProjectDetailPage() {
                 <p className="text-sm text-stone">
                   Showing {evidence.length} recent assets
                 </p>
-                <Button size="sm" onClick={() => setUploadOpen(true)}>
+                {can("evidence.upload") && <Button size="sm" onClick={() => setUploadOpen(true)}>
                   <Plus size={15} />
                   Upload
-                </Button>
+                </Button>}
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {evidence.map((asset) => (
@@ -398,10 +402,14 @@ export function ProjectDetailPage() {
                     asset={asset}
                     onOpen={() => setSelected(asset)}
                     onToggle={() => setSelected(asset)}
-                    onFavorite={async () => {
-                      await assetsApi.favorite(asset.id, !asset.favorite);
-                      void qc.invalidateQueries({ queryKey: ["project", id] });
-                    }}
+                    onFavorite={can("evidence.curate") ? async () => {
+                      try {
+                        await assetsApi.favorite(asset.id, !asset.favorite);
+                        void qc.invalidateQueries({ queryKey: ["project", id] });
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : "Could not update favorite");
+                      }
+                    } : undefined}
                   />
                 ))}
               </div>
@@ -412,10 +420,10 @@ export function ProjectDetailPage() {
               title="No evidence collected"
               text="Upload images or videos to begin a traceable project record."
               action={
-                <Button onClick={() => setUploadOpen(true)}>
+                can("evidence.upload") ? <Button onClick={() => setUploadOpen(true)}>
                   <Plus size={16} />
                   Upload evidence
-                </Button>
+                </Button> : undefined
               }
             />
           ))}
@@ -447,7 +455,6 @@ export function ProjectDetailPage() {
                         asset={asset}
                         onOpen={() => setSelected(asset)}
                         onToggle={() => setSelected(asset)}
-                        onFavorite={() => undefined}
                       />
                     ))}
                   </div>
@@ -478,6 +485,7 @@ export function ProjectDetailPage() {
             action={<Link to={`/app/reports?projectId=${p.id}`}><Button><FileText size={16} />{p._count.reports ? "View reports" : "Generate report"}</Button></Link>}
           />
         )}
+        {activeTab === "team" && <ProjectTeam projectId={p.id} />}
       </div>
       <UploadDialog
         open={uploadOpen}

@@ -20,7 +20,8 @@ export function EvidenceCard({
   selectionMode?: boolean;
   onOpen: () => void;
   onToggle: () => void;
-  onFavorite: () => void;
+  /** Omitted when the viewer's role cannot curate evidence; the star is then hidden. */
+  onFavorite?: () => void;
 }) {
   if (view === "list")
     return (
@@ -74,7 +75,7 @@ export function EvidenceCard({
           </span>
           <AnalysisStatusBadge status={asset.aiStatus} />
         </button>
-        <button
+        {onFavorite && <button
           aria-label={asset.favorite ? "Remove favorite" : "Add favorite"}
           title={asset.favorite ? "Remove favorite" : "Add favorite"}
           onClick={onFavorite}
@@ -86,7 +87,7 @@ export function EvidenceCard({
               asset.favorite ? "fill-amber-400 text-amber-500" : "text-stone"
             }
           />
-        </button>
+        </button>}
         <a
           href={asset.secureUrl}
           download
@@ -159,7 +160,7 @@ export function EvidenceCard({
       >
         {selected && <Check size={15} />}
       </button>
-      <button
+      {onFavorite && <button
         aria-label={asset.favorite ? "Remove favorite" : "Add favorite"}
         title={asset.favorite ? "Remove favorite" : "Add favorite"}
         onClick={onFavorite}
@@ -169,7 +170,7 @@ export function EvidenceCard({
           size={16}
           className={asset.favorite ? "fill-amber-400 text-amber-400" : ""}
         />
-      </button>
+      </button>}
     </article>
   );
 }
