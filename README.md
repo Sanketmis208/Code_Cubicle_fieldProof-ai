@@ -24,7 +24,9 @@ Collecting more photos does not help. What helps is a layer that checks each pho
 | --- | --- |
 | **Trust Score** | Every upload gets a 0–100 score with each point explained. The checks cover byte-identical reuse, near-duplicate reuse across events or days, a photo of a screen or print, AI-generated images, editing software, capture time against the project period, GPS against project sites, mock GPS and device signature. Wording is "needs a second look", never "fraud". |
 | **Honest counting** | Shots within 15 minutes and 150 m form one **event** ("40 files, 1 event, 3 best shots"). Only best shots go to the AI, which keeps within the provider's quota. |
-| **Organizations & roles** | Multi-tenant organizations with six roles (Owner, Admin, Program manager, Verifier, Field worker, Viewer), invite codes, project assignment and a hash-chained audit log. Nothing crosses organizations. |
+| **Organizations & roles** | Multi-tenant organizations with six roles (Owner, Admin, Program manager, Verifier, Field worker, Viewer). Admins add members by email; each gets a one-time link to choose a password. Project assignment and a hash-chained audit log. Nothing crosses organizations. |
+| **Targets & tallies** | "How many?" A project commits to a count (500 saplings). Field staff record each batch with its site and the day's photos; a reviewer confirms it. The claim checker and reports use confirmed tallies, never photo counts. |
+| **Ask FieldProof** | An in-app assistant (web and mobile) that answers from the organization's own numbers: projects, review queue, trust flags, targets. It cannot act or see other organizations. |
 | **Review** | A risk-sorted queue grouped by event, with "approve whole event". A reason is required to reject or request a re-shoot. Nobody approves their own upload. |
 | **Evidence Passport** | One page per item: fingerprint, capture facts and where each came from, every check, the reviewer, the originals behind any reuse flag, and every derived file with its exact Cloudinary transformation. A **public passport** shares the same with faces blurred, location rounded to about 1 km, and no names. |
 | **Story Studio** | Instagram card, 9:16 story and before/after poster, built only from Cloudinary transformations of **approved** evidence. Faces are blurred by default, and each file carries a QR code to its public passport. |
@@ -33,7 +35,7 @@ Collecting more photos does not help. What helps is a layer that checks each pho
 | **Search** | Plain-language search that understands synonyms ("sapling planting" finds "tree planting"), plus filters by trust, review status and capture source. |
 | **Before/after** | AI-described visible change, a slider, and a **Comparability Score** (same spot? same viewpoint?). Pairs that can't be compared fairly are marked "indicative only". |
 | **Live capture (web)** | A phone-browser camera page opened by QR code, with no install. It takes no file picker, records GPS and an inside-site badge, and uses server time. |
-| **Live capture (app)** | A Flutter app ([`mobile/`](mobile/README.md)) that is camera-only. Each capture is signed with an Ed25519 key on the phone, uses trusted time from server sync plus a monotonic clock, records Android's mock-location flag, and goes through an offline queue. |
+| **Mobile app** | A Flutter app ([`mobile/`](mobile/README.md)) for the whole team: role-aware dashboard, projects with evidence and targets, in-app review, the assistant, and camera-only capture signed on the phone with trusted time, mock-GPS detection and an offline queue. |
 
 ## Cloudinary is the evidence engine
 
@@ -86,7 +88,9 @@ cd backend && npx prisma migrate deploy && cd ..
 npm run dev                               # API on :4000, web app on :5173
 ```
 
-Every existing user is moved into a personal organization by the migration, so older databases keep working.
+Every existing user is moved into a personal organization by the migration, so older databases keep working. Set `SMTP_*` in `backend/.env` to email setup links; without it, the admin is shown the link to pass on.
+
+For a production deploy on your own domain (Docker Compose with automatic HTTPS), see [`deploy/README.md`](deploy/README.md).
 
 ### Demo data
 
@@ -101,7 +105,7 @@ The script creates the organization, an owner, a field worker and a verifier (jo
 ## Testing
 
 ```bash
-npm test             # backend: 83 tests against an isolated <db>_test database
+npm test             # backend: 85 tests against an isolated <db>_test database
 npm run typecheck
 npm run lint
 npm run build
@@ -169,9 +173,11 @@ All routes are under `/api`. Authentication uses an HttpOnly session cookie (web
 
 | Area | Endpoints |
 | --- | --- |
-| Auth | `POST /auth/register` (optional `inviteCode`), `/auth/login`, `/auth/token`, `/auth/logout`, `GET /auth/me` |
-| Organizations | `GET/POST /orgs`, `POST /orgs/join`, `GET/PATCH /orgs/:id`, members, invites, `GET /orgs/:id/audit` |
-| Projects | CRUD, `/projects/:id/summary`, `/projects/:id/members`, `/projects/:id/sites` |
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/token`, `/auth/logout`, `GET /auth/me`, `GET/POST /auth/setup/:token`, `POST /auth/forgot-password` |
+| Organizations | `GET/POST /orgs`, `GET/PATCH /orgs/:id`, `GET/POST /orgs/:id/members`, member role/remove/resend-setup, `GET /orgs/:id/audit` |
+| Projects | CRUD, `/projects/:id/summary`, `/projects/:id/members`, `/projects/:id/sites`, `/projects/:id/targets`, `/projects/:id/events` |
+| Targets | `POST /targets/:id/tallies`, `POST /targets/tallies/:id/review` |
+| Assistant | `POST /assistant/chat` |
 | Evidence | `GET /assets` (filters incl. trust/review/source), `POST /assets/upload`, `/assets/:id` (+ `analyze`, `retry`, `favorite`, `passport`, `share`), `POST /assets/search/interpret` |
 | Review | `GET /review/queue`, `POST /review/assets/:id`, `POST /review/events/:id` |
 | Intelligence | `/comparisons`, `/reports`, `POST /claims/check`, `/story` |
@@ -183,7 +189,7 @@ All routes are under `/api`. Authentication uses an HttpOnly session cookie (web
 - **Tenant isolation:** every query is scoped by organization and project assignment through one policy module (`backend/src/authz`).
 - **Separation of duties:** capture, review and publishing are different permissions. Self-review is blocked, except in a single-person workspace, where it is recorded as such.
 - **Audit log:** append-only and hash-chained per organization. Tampering is detected and shown in the UI.
-- **Invite codes:** stored hashed, shown once; they can expire, be revoked, be limited in uses or be tied to one email. Join attempts are rate-limited.
+- **Account setup:** members are created by an admin and activated through an emailed one-time link (stored hashed, 7-day expiry, race-safe). Passwords are never emailed; forgot-password answers the same for unknown emails.
 - **Live captures:** the server recomputes the SHA-256 and verifies the Ed25519 signature over the exact signed bytes. Browser captures ignore the browser clock.
 - **Privacy:** faces are blurred by default for anything public. Public passports round coordinates and hide people. GPS is read only while the camera is open.
 - **Hardening:** rate limits are per user (per IP for public routes), Zod validation runs on every request and AI response, and file signatures are checked on upload. Helmet and CORS use an exact allowlist.

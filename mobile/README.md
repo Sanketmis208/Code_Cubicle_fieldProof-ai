@@ -1,6 +1,16 @@
-# FieldProof Capture (Flutter)
+# FieldProof mobile app (Flutter)
 
-The field app for FieldProof AI. It takes evidence **live, through its own camera only**. There is no gallery and no file picker anywhere in the app. Uploading existing files stays a web-app feature.
+The team app for FieldProof AI: a role-aware dashboard, projects with evidence and targets, in-app review, the assistant, and **live capture through the app's own camera only**. There is no gallery and no file picker anywhere in the app; uploading existing files stays a web-app feature.
+
+| Tab | Who sees it | What it does |
+| --- | --- | --- |
+| Home | Everyone | Organization counts (projects, evidence, awaiting review, AI analyzed, comparisons, reports), this phone's sync state, newest evidence |
+| Projects | Everyone (scoped by role) | Evidence grid with trust badges, targets with "record a batch" and reviewer confirmation, sites |
+| Capture | Upload roles | Pick a project, then the camera |
+| Review | Review roles | Queue riskiest first, grouped by event; approve / re-shoot / reject with reasons; never your own upload |
+| Me | Everyone | Switch organization, what your role allows, phone sync state, sign out |
+
+Signing in uses the email and password set through the link an admin sent. There is no sign-up in the app.
 
 At the shutter the app records:
 
@@ -15,8 +25,8 @@ Captures go into an offline queue first. They are sent when there is signal and 
 
 ## Screens
 
-1. **Sign in**, or **join with an invite code** (field workers rarely have a work email).
-2. **Home**: organization and role, sync health (time synced, signing key ready, captures waiting), and assigned projects.
+1. **Sign in** with the email an admin added; **Forgot password** sends a reset link.
+2. **Home**: organization counts, sync health (time synced, signing key ready, captures waiting), newest evidence.
 3. **Camera**: live preview with GPS accuracy, an "Inside Plot B" or "420 m from Plot B" badge, a mock-location warning, and a *Match last* ghost overlay for repeat photos from the same spot. The shutter is never blocked by weak GPS.
 4. **My submissions**: per photo, waiting / sent / not accepted, the Trust Score, and the reviewer's decision, including re-shoot requests with the reviewer's note.
 
@@ -48,9 +58,9 @@ The setup script allows plain `http://` for local development only. Production b
 
 ### Try the full flow
 
-1. In the web app, as Owner or Admin, open **Organization → Invites** and create a **Field worker** invite. Copy the code.
+1. In the web app, as Owner or Admin, open **Organization → Members** and add a **Field worker** by email. Open the setup link (emailed, or shown to you when SMTP is off) and choose a password.
 2. In a project's **Team** tab, assign that person. In its **Sites** tab, add a site with "Use my current location".
-3. In the app, tap **I have an invite code**, enter the code and create the account.
+3. In the app, sign in with that email and password.
 4. Open the project and take photos.
 5. Back on the web app, open **Review** as a Verifier. The captures carry the badge **Live · app** with *Device signature: signed on the capturing device*, and score highest.
 6. Turn on a mock-location app on the phone and capture again. That photo is flagged *Needs a second look*.
@@ -71,7 +81,8 @@ lib/
     capture_queue.dart      persistent offline queue, retry, status refresh
     secure_store.dart       token and keys in platform-protected storage
   state/app_state.dart      session, organization switch, projects
-  screens/                  login, home, capture, submissions
+  screens/                  login, shell (bottom nav), dashboard, projects, project detail,
+                            evidence detail, review, assistant, profile, capture picker, capture, submissions
 test/core_test.dart         manifest signing and tamper detection, geo, time format
 ```
 
