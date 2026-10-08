@@ -298,7 +298,7 @@ class _TallySheetState extends State<_TallySheet> {
         const SizedBox(height: 12),
         if (widget.sites.isNotEmpty)
           DropdownButtonFormField<String?>(
-            initialValue: _siteId,
+            value: _siteId,
             decoration: const InputDecoration(labelText: 'Site'),
             items: [const DropdownMenuItem<String?>(value: null, child: Text('Not specified')), for (final site in widget.sites) DropdownMenuItem<String?>(value: site.id, child: Text(site.name))],
             onChanged: (value) => setState(() => _siteId = value),
@@ -306,7 +306,7 @@ class _TallySheetState extends State<_TallySheet> {
         if (widget.events.isNotEmpty) ...[
           const SizedBox(height: 12),
           DropdownButtonFormField<String?>(
-            initialValue: _eventId,
+            value: _eventId,
             decoration: const InputDecoration(labelText: 'Photos of this batch'),
             items: [
               const DropdownMenuItem<String?>(value: null, child: Text('None yet')),

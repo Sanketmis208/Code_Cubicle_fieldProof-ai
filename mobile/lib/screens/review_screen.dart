@@ -58,6 +58,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       note = await _askReason(decision == 'REJECTED' ? 'Why is this rejected?' : 'What should the re-shoot capture?');
       if (note == null) return;
     }
+    if (!mounted) return;
     setState(() => _busy.add(item.id));
     try {
       await state.workspace.review(item.id, decision, note: note);

@@ -45,7 +45,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      if (mounted && _scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
     }
   }
 

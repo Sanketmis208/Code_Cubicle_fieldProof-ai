@@ -52,6 +52,13 @@ export function ClaimsPage() {
               ))}
             </dl>
           </section>
+          {result.tallied && result.intent.quantity && (
+            <section className="card p-6">
+              <h2 className="font-display text-lg font-bold">Counted, not just pictured</h2>
+              <p className="mt-1 text-sm text-stone">Confirmed tallies for “{result.tallied.label}”: <strong className="text-ink">{result.tallied.confirmed.toLocaleString()}</strong> of the {result.intent.quantity.value.toLocaleString()} {result.intent.quantity.unit} claimed ({result.tallied.recorded.toLocaleString()} recorded).</p>
+              <div className="relative mt-3 h-3 overflow-hidden rounded-full bg-fog"><div className="absolute inset-y-0 left-0 rounded-full bg-amber-300" style={{ width: `${Math.min(100, (result.tallied.recorded / result.intent.quantity.value) * 100)}%` }} /><div className="absolute inset-y-0 left-0 rounded-full bg-emerald-600" style={{ width: `${Math.min(100, (result.tallied.confirmed / result.intent.quantity.value) * 100)}%` }} /></div>
+            </section>
+          )}
           {result.gaps.length > 0 && (
             <section className="card p-6">
               <h2 className="font-display text-lg font-bold">What is missing</h2>

@@ -86,8 +86,8 @@ export function AssistantWidget() {
                 const link = message.role === "assistant" ? destination(messages[index - 1]?.content ?? "") : null;
                 return (
                   <motion.div key={index} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
-                    <div className={cn("max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-6", message.role === "user" ? "bg-ink text-white" : "bg-fog text-ink")}>
-                      {message.content}
+                    <div className={cn("max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-6", message.role === "user" ? "whitespace-pre-wrap bg-ink text-white" : "bg-fog text-ink")}>
+                      {message.role === "user" ? message.content : <Markdown text={message.content} />}
                       {link && <Link to={link.to} onClick={() => setOpen(false)} className="mt-2 block text-xs font-bold text-emerald-700 hover:underline">{link.label} →</Link>}
                     </div>
                   </motion.div>
@@ -114,5 +114,26 @@ export function AssistantWidget() {
         Ask FieldProof
       </motion.button>
     </>
+  );
+}
+
+/** The assistant replies in light markdown: paragraphs, bullet lists and **bold**. Nothing else is interpreted. */
+function Markdown({ text }: { text: string }) {
+  const blocks = text.replace(/\r/g, "").split(/\n{2,}/);
+  const inline = (line: string) =>
+    line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, index) =>
+      part.startsWith("**") ? <strong key={index}>{part.slice(2, -2)}</strong>
+        : part.startsWith("`") ? <code key={index} className="rounded bg-black/[.06] px-1 text-[12px]">{part.slice(1, -1)}</code>
+          : <span key={index}>{part}</span>);
+  return (
+    <div className="space-y-2">
+      {blocks.map((block, index) => {
+        const lines = block.split("\n").filter(Boolean);
+        const list = lines.length > 0 && lines.every((line) => /^\s*([*•-]|\d+[.)])\s+/.test(line));
+        if (list)
+          return <ul key={index} className="list-disc space-y-1 pl-4">{lines.map((line, i) => <li key={i}>{inline(line.replace(/^\s*([*•-]|\d+[.)])\s+/, ""))}</li>)}</ul>;
+        return <p key={index}>{lines.map((line, i) => <span key={i}>{inline(line)}{i < lines.length - 1 && <br />}</span>)}</p>;
+      })}
+    </div>
   );
 }

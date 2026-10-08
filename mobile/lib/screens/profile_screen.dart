@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/models.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import 'assistant_screen.dart';

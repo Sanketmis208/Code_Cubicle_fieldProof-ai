@@ -101,6 +101,7 @@ export type ClaimResult = {
   intent: { activities: string[]; locationTerms: string[]; dateFrom: string | null; dateTo: string | null; quantity: { value: number; unit: string } | null; keywords: string[] };
   counts: { matching: number; events: number; approved: number; trusted: number; needsSecondLook: number; insideSite: number };
   gaps: string[]; evidence: Asset[];
+  tallied?: { confirmed: number; recorded: number; label: string } | null;
 };
 export type StoryKind = 'SQUARE_CARD' | 'STORY' | 'BEFORE_AFTER';
 export type EvidenceSearchIntent = {

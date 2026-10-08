@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { RequestHandler } from "express";
-import { actorForProject, actorFromRequest, assetWhere } from "../authz/actor.js";
+import { actorForProject, actorFromRequest, assetWhere, projectWhere } from "../authz/actor.js";
 import { prisma } from "../lib/prisma.js";
 import { aiService } from "../services/ai.service.js";
 import { evidenceInclude } from "../services/evidence.service.js";
@@ -66,6 +66,23 @@ export const checkClaim: RequestHandler = async (req, res) => {
   const events = new Set(matching.map((asset) => asset.eventClusterId ?? asset.id));
   const located = matching.filter((asset) => asset.siteId);
 
+  // Quantities are answered by confirmed tallies, never by counting photos.
+  let tallied: { confirmed: number; recorded: number; label: string } | null = null;
+  if (intent.quantity) {
+    const unitStems = stems([intent.quantity.unit, ...intent.activities]);
+    const targets = await prisma.target.findMany({
+      where: { project: { ...projectWhere(actor), ...(projectId && { id: projectId }) } },
+      include: { tallies: { where: { ...(from && { recordedAt: { gte: from } }), ...(to && { recordedAt: { lte: to } }) } } },
+    });
+    const matching = targets.filter((t) => unitStems.some((stem) => `${t.label} ${t.unit}`.toLowerCase().includes(stem)));
+    if (matching.length)
+      tallied = {
+        label: matching.map((t) => t.label).join(", "),
+        confirmed: matching.flatMap((t) => t.tallies).filter((x) => x.reviewStatus === "APPROVED").reduce((n, x) => n + x.count, 0),
+        recorded: matching.flatMap((t) => t.tallies).filter((x) => x.reviewStatus !== "REJECTED").reduce((n, x) => n + x.count, 0),
+      };
+  }
+
   const gaps: string[] = [];
   if (!aboutActivity.length) gaps.push("No evidence shows this activity.");
   else if (placeTerms.length && !atPlace.length) gaps.push(`Evidence of the activity exists, but none from ${intent.locationTerms.join(", ")}.`);
@@ -74,13 +91,15 @@ export const checkClaim: RequestHandler = async (req, res) => {
   if (matching.length && !approved.length) gaps.push("None of the matching evidence has been approved by a reviewer yet.");
   if (secondLook.length) gaps.push(`${secondLook.length} matching item${secondLook.length === 1 ? " needs" : "s need"} a second look before being cited.`);
   if (matching.length && !located.length) gaps.push("None of the matching evidence is confirmed inside a project site.");
-  if (intent.quantity)
-    gaps.push(`“${intent.quantity.value} ${intent.quantity.unit}” is a count. Photos can show the activity happened, not how many; attach a tally or distribution record.`);
+  if (intent.quantity && !tallied)
+    gaps.push(`“${intent.quantity.value} ${intent.quantity.unit}” is a count. Photos show the activity happened, not how many; set a target and record tallies under the project's Targets tab.`);
+  else if (intent.quantity && tallied && tallied.confirmed < intent.quantity.value)
+    gaps.push(`Confirmed tallies cover ${tallied.confirmed.toLocaleString()} of the ${intent.quantity.value.toLocaleString()} ${intent.quantity.unit} claimed (${tallied.recorded.toLocaleString()} recorded, ${(tallied.recorded - tallied.confirmed).toLocaleString()} awaiting review) for “${tallied.label}”.`);
 
   const verdict = !matching.length
     ? "UNSUPPORTED"
     : approved.some((asset) => asset.trustStatus !== "NEEDS_SECOND_LOOK") && !(placeTerms.length && !atPlace.length)
-      ? (intent.quantity ? "PARTIAL" : "SUPPORTED")
+      ? (intent.quantity && !(tallied && tallied.confirmed >= intent.quantity.value) ? "PARTIAL" : "SUPPORTED")
       : "PARTIAL";
 
   const rank = (asset: Candidate) => (asset.reviewStatus === "APPROVED" ? 0 : 1) * 1000 - (asset.trustScore ?? 0);
@@ -93,6 +112,7 @@ export const checkClaim: RequestHandler = async (req, res) => {
       needsSecondLook: secondLook.length, insideSite: located.length,
     },
     gaps,
+    tallied,
     evidence: [...matching].sort((a, b) => rank(a) - rank(b)).slice(0, 12),
   });
 };

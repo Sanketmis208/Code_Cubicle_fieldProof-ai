@@ -44,6 +44,7 @@ class _EvidenceDetailScreenState extends State<EvidenceDetailScreen> {
       note = await _askReason(decision == 'REJECTED' ? 'Why is this rejected? The field worker will see this.' : 'What should the re-shoot capture?');
       if (note == null) return;
     }
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
       await state.workspace.review(widget.evidenceId, decision, note: note);
