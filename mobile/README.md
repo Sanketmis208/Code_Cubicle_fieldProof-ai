@@ -1,16 +1,17 @@
 # FieldProof mobile app (Flutter)
 
-The team app for FieldProof AI: a role-aware dashboard, projects with evidence and targets, in-app review, the assistant, and **live capture through the app's own camera only**. There is no gallery and no file picker anywhere in the app; uploading existing files stays a web-app feature.
+The whole product on the phone, for every role, against the same backend and the same permission table as the web app. The one deliberate difference: evidence enters the app **only through its own camera**. There is no gallery and no file picker; uploading existing files stays a web-app feature.
 
 | Tab | Who sees it | What it does |
 | --- | --- | --- |
-| Home | Everyone | Organization counts (projects, evidence, awaiting review, AI analyzed, comparisons, reports), this phone's sync state, newest evidence |
-| Projects | Everyone (scoped by role) | Evidence grid with trust badges, targets with "record a batch" and reviewer confirmation, sites |
+| Home | Everyone | Organization counts, quick actions (review queue, add member, claim checker, reports, assistant), this phone's sync state, newest evidence |
+| Projects | Everyone (scoped by role) | Create and edit projects (`project.create` / `project.edit`); per project: Evidence grid with trust badges, Targets (set, record a batch, confirm), Sites (add with current location, remove), Team (assign and remove members); reports and the claim checker from the project menu |
 | Capture | Upload roles | Pick a project, then the camera |
 | Review | Review roles | Queue riskiest first, grouped by event; approve / re-shoot / reject with reasons; never your own upload |
-| Me | Everyone | Switch organization, what your role allows, phone sync state, sign out |
+| Org | `org.members.view` | Overview and roles, Members (add by email with a one-time setup link, change role, resend link, remove), Audit trail with hash-chain check, settings for owners and admins |
+| Me | Everyone | Switch or create an organization, members and roles, claim checker, reports, assistant, submissions, phone sync state, sign out |
 
-Signing in uses the email and password set through the link an admin sent. There is no sign-up in the app.
+Everything the web app can do is here, by the same role: an admin adds a field worker by email from the phone, a program manager sets up a project with sites and a 500-sapling target, the field worker captures and records batches, a verifier reviews and confirms, and anyone can check a claim, read a cited report or share an Evidence Passport link. Signing in uses the email and password set through the link an admin sent; someone who is in no organization yet can create one from the app and becomes its owner.
 
 At the shutter the app records:
 
@@ -56,6 +57,8 @@ flutter run --dart-define=API_URL=http://<your-computer-LAN-IP>:4000/api
 
 The setup script allows plain `http://` for local development only. Production builds must use `https://`.
 
+Public passport links shown in the app use the API origin without `/api` (right once web and API share a domain). During development the web app runs on another port, so pass it: `--dart-define=WEB_URL=http://<computer-LAN-IP>:5173`.
+
 ### Try the full flow
 
 1. In the web app, as Owner or Admin, open **Organization → Members** and add a **Field worker** by email. Open the setup link (emailed, or shown to you when SMTP is off) and choose a password.
@@ -81,8 +84,10 @@ lib/
     capture_queue.dart      persistent offline queue, retry, status refresh
     secure_store.dart       token and keys in platform-protected storage
   state/app_state.dart      session, organization switch, projects
-  screens/                  login, shell (bottom nav), dashboard, projects, project detail,
-                            evidence detail, review, assistant, profile, capture picker, capture, submissions
+  screens/                  login, shell (bottom nav), dashboard, projects, project form, project detail,
+                            project team, organization (members, audit, settings), no organization,
+                            evidence detail (with passport sharing), review, claims, reports, assistant,
+                            profile, capture picker, capture, submissions
 test/core_test.dart         manifest signing and tamper detection, geo, time format
 ```
 

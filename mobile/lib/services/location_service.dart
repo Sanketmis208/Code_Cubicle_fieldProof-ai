@@ -34,6 +34,19 @@ class LocationService {
     }
   }
 
+  /// One reading, for placing a site; null when location is off or refused.
+  static Future<Fix?> currentFix() async {
+    if (!await LocationService().ensurePermission()) return null;
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 15)),
+      );
+      return Fix.fromPosition(position);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Stream<Fix> watch() => Geolocator.getPositionStream(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 0),
       ).map(Fix.fromPosition);

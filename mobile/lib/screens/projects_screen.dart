@@ -4,7 +4,10 @@ import '../api/api_client.dart';
 import '../core/models.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import 'claims_screen.dart';
 import 'project_detail_screen.dart';
+import 'project_form_sheet.dart';
+import 'reports_screen.dart';
 
 /// Every project this person can see (all of them for owners, admins and
 /// viewers; assigned ones for everyone else).
@@ -40,11 +43,41 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
+  Future<void> _create() async {
+    final state = AppScope.of(context);
+    final fields = await showModalBottomSheet<Map<String, Object?>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Brand.paper,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) => const ProjectFormSheet(),
+    );
+    if (fields == null || !mounted) return;
+    try {
+      final project = await state.workspace.createProject(fields);
+      await _load();
+      await state.refreshProjects();
+      if (mounted) Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectDetailScreen(project: project)));
+    } on ApiException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
     final projects = _projects;
     return Scaffold(
-      appBar: AppBar(title: const Text('Projects', style: TextStyle(fontWeight: FontWeight.w800))),
+      appBar: AppBar(
+        title: const Text('Projects', style: TextStyle(fontWeight: FontWeight.w800)),
+        actions: [
+          IconButton(tooltip: 'Reports', icon: const Icon(Icons.description_outlined), onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ReportsScreen()))),
+          IconButton(tooltip: 'Check a claim', icon: const Icon(Icons.fact_check_outlined), onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ClaimsScreen()))),
+        ],
+      ),
+      floatingActionButton: state.can('project.create')
+          ? FloatingActionButton.extended(backgroundColor: Brand.lime, foregroundColor: Brand.ink, onPressed: _create, icon: const Icon(Icons.add), label: const Text('New project'))
+          : null,
       body: RefreshIndicator(
         onRefresh: _load,
         child: projects == null
@@ -55,16 +88,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 ),
               ])
             : projects.isEmpty
-                ? ListView(children: const [Padding(padding: EdgeInsets.all(40), child: Center(child: Text('No projects yet. A program manager or admin can assign you to one.', textAlign: TextAlign.center, style: TextStyle(color: Brand.stone))))])
+                ? ListView(children: [Padding(padding: const EdgeInsets.all(40), child: Center(child: Text(state.can('project.create') ? 'No projects yet. Create the first one.' : 'No projects yet. A program manager or admin can assign you to one.', textAlign: TextAlign.center, style: const TextStyle(color: Brand.stone))))])
                 : ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
                     itemCount: projects.length,
                     separatorBuilder: (context, index) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final project = projects[index];
                       return InkWell(
                         borderRadius: BorderRadius.circular(20),
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectDetailScreen(project: project))),
+                        onTap: () async {
+                          await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectDetailScreen(project: project)));
+                          _load();
+                        },
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),

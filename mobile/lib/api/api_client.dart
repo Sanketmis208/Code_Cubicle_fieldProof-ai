@@ -47,6 +47,12 @@ class ApiClient {
   Future<Map<String, dynamic>> post(String path, [Map<String, Object?> body = const {}]) =>
       _send(() => _http.post(_uri(path), headers: _headers(), body: jsonEncode(body)), const Duration(seconds: 30));
 
+  Future<Map<String, dynamic>> patch(String path, Map<String, Object?> body) =>
+      _send(() => _http.patch(_uri(path), headers: _headers(), body: jsonEncode(body)), const Duration(seconds: 30));
+
+  Future<Map<String, dynamic>> delete(String path) =>
+      _send(() => _http.delete(_uri(path), headers: _headers()), const Duration(seconds: 30));
+
   /// One file plus text fields, as the live-capture endpoint expects.
   Future<Map<String, dynamic>> postFile(
     String path, {

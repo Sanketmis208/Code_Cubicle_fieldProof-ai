@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api/api_client.dart';
+import '../config.dart';
 import '../core/models.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
@@ -19,6 +21,7 @@ class EvidenceDetailScreen extends StatefulWidget {
 
 class _EvidenceDetailScreenState extends State<EvidenceDetailScreen> {
   Evidence? _evidence;
+  Passport? _passport;
   String? _error;
   bool _busy = false;
 
@@ -29,11 +32,41 @@ class _EvidenceDetailScreenState extends State<EvidenceDetailScreen> {
   }
 
   Future<void> _load() async {
+    final api = AppScope.of(context).workspace;
     try {
-      final evidence = await AppScope.of(context).workspace.evidenceDetail(widget.evidenceId);
+      final evidence = await api.evidenceDetail(widget.evidenceId);
       if (mounted) setState(() { _evidence = evidence; _error = null; });
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
+      return;
+    }
+    try {
+      final passport = await api.passport(widget.evidenceId);
+      if (mounted) setState(() => _passport = passport);
+    } on ApiException {
+      // The passport block simply stays hidden.
+    }
+  }
+
+  /// The public passport link, as the web app would show it.
+  String _publicUrl(String path) => '${AppConfig.webUrl}$path';
+
+  Future<void> _share({required bool share}) async {
+    final state = AppScope.of(context);
+    setState(() => _busy = true);
+    try {
+      if (share) {
+        final path = await state.workspace.sharePassport(widget.evidenceId);
+        await Clipboard.setData(ClipboardData(text: _publicUrl(path)));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Public passport link copied')));
+      } else {
+        await state.workspace.unsharePassport(widget.evidenceId);
+      }
+      await _load();
+    } on ApiException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -135,6 +168,33 @@ class _EvidenceDetailScreenState extends State<EvidenceDetailScreen> {
                   if (evidence.reviewNote != null) ...[
                     const SizedBox(height: 12),
                     _Section(title: 'Reviewer note', children: [Text(evidence.reviewNote!)]),
+                  ],
+                  if (_passport != null) ...[
+                    const SizedBox(height: 12),
+                    _Section(title: 'Evidence passport', children: [
+                      if (_passport!.reviewer != null) _Fact('Reviewed by', _passport!.reviewer!),
+                      if (_passport!.related > 0) _Fact('Related', '${_passport!.related} other shot${_passport!.related == 1 ? '' : 's'} of the same event'),
+                      _Fact('Public link', _passport!.publicPath == null ? 'Private; only members can see this page' : 'Anyone with the link sees the facts and checks, with faces blurred and no names'),
+                      if (_passport!.publicPath != null) ...[
+                        const SizedBox(height: 4),
+                        SelectableText(_publicUrl(_passport!.publicPath!), style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+                      ],
+                      if (state.can('evidence.curate')) ...[
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          if (_passport!.publicPath == null)
+                            Expanded(child: OutlinedButton.icon(onPressed: _busy ? null : () => _share(share: true), icon: const Icon(Icons.public, size: 18), label: const Text('Make public, copy link')))
+                          else ...[
+                            Expanded(child: OutlinedButton.icon(onPressed: () async {
+                              await Clipboard.setData(ClipboardData(text: _publicUrl(_passport!.publicPath!)));
+                              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+                            }, icon: const Icon(Icons.copy, size: 18), label: const Text('Copy link'))),
+                            const SizedBox(width: 8),
+                            OutlinedButton(onPressed: _busy ? null : () => _share(share: false), child: const Text('Make private')),
+                          ],
+                        ]),
+                      ],
+                    ]),
                   ],
                   const SizedBox(height: 16),
                   if (state.can('evidence.review') && evidence.reviewStatus == 'PENDING') ...[

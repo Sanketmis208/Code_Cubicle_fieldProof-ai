@@ -6,7 +6,11 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/evidence_tile.dart';
 import 'assistant_screen.dart';
+import 'claims_screen.dart';
 import 'evidence_detail_screen.dart';
+import 'organization_screen.dart';
+import 'reports_screen.dart';
+import 'review_screen.dart';
 import 'submissions_screen.dart';
 
 /// What the organization looks like today: counts, what needs attention, the
@@ -104,6 +108,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 16),
             ],
             if (state.can('evidence.upload')) _SyncCard(state: state),
+            const SizedBox(height: 16),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                if (state.can('evidence.review') && summary != null && summary.pending > 0)
+                  _Action(icon: Icons.fact_check_outlined, label: '${summary.pending} to review', highlight: true, onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ReviewScreen()))),
+                if (state.can('org.members.manage'))
+                  _Action(icon: Icons.person_add_alt_1_outlined, label: 'Add member', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const OrganizationScreen()))),
+                _Action(icon: Icons.rule_outlined, label: 'Check a claim', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ClaimsScreen()))),
+                _Action(icon: Icons.description_outlined, label: 'Reports', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ReportsScreen()))),
+                _Action(icon: Icons.chat_bubble_outline, label: 'Ask', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AssistantScreen()))),
+              ]),
+            ),
             const SizedBox(height: 20),
             Row(children: [
               const Expanded(child: Text('NEWEST EVIDENCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2, color: Brand.stone))),
@@ -192,6 +209,30 @@ class _SyncCard extends StatelessWidget {
           ]),
         );
       },
+    );
+  }
+}
+
+class _Action extends StatelessWidget {
+  const _Action({required this.icon, required this.label, required this.onTap, this.highlight = false});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        avatar: Icon(icon, size: 18, color: highlight ? Colors.white : Brand.ink),
+        label: Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: highlight ? Colors.white : Brand.ink)),
+        backgroundColor: highlight ? Brand.ink : Colors.white,
+        side: BorderSide.none,
+        shape: const StadiumBorder(),
+        onPressed: onTap,
+      ),
     );
   }
 }

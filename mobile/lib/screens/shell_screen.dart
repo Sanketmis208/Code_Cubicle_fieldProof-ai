@@ -4,6 +4,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import 'capture_picker_screen.dart';
 import 'dashboard_screen.dart';
+import 'organization_screen.dart';
 import 'profile_screen.dart';
 import 'projects_screen.dart';
 import 'review_screen.dart';
@@ -30,6 +31,8 @@ class _ShellScreenState extends State<ShellScreen> {
         (label: 'Capture', icon: Icons.photo_camera_outlined, activeIcon: Icons.photo_camera, screen: const CapturePickerScreen()),
       if (state.can('evidence.review'))
         (label: 'Review', icon: Icons.fact_check_outlined, activeIcon: Icons.fact_check, screen: const ReviewScreen()),
+      if (state.can('org.members.view'))
+        (label: 'Org', icon: Icons.groups_outlined, activeIcon: Icons.groups, screen: const OrganizationScreen()),
       (label: 'Me', icon: Icons.person_outline, activeIcon: Icons.person, screen: const ProfileScreen()),
     ];
     final index = _index.clamp(0, tabs.length - 1);
@@ -38,6 +41,8 @@ class _ShellScreenState extends State<ShellScreen> {
       bottomNavigationBar: ListenableBuilder(
         listenable: state.queue,
         builder: (context, _) => NavigationBar(
+          key: ValueKey(tabs.length),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           selectedIndex: index,
           onDestinationSelected: (value) => setState(() => _index = value),
           backgroundColor: Colors.white,

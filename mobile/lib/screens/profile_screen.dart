@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../api/api_client.dart';
 import 'assistant_screen.dart';
+import 'claims_screen.dart';
+import 'organization_screen.dart';
+import 'reports_screen.dart';
 import 'submissions_screen.dart';
 
 /// Who you are, where you are, what this phone can do, and the way out.
@@ -39,20 +43,23 @@ class ProfileScreen extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: 16),
-            if (state.memberships.length > 1) ...[
-              const _Label('ORGANIZATION'),
-              for (final m in state.memberships)
-                _Row(
-                  icon: m.organization.id == membership?.organization.id ? Icons.radio_button_checked : Icons.radio_button_off,
-                  title: m.organization.name,
-                  subtitle: m.roleLabel,
-                  onTap: m.organization.id == membership?.organization.id ? null : () => state.switchOrganization(m),
-                ),
-              const SizedBox(height: 16),
-            ],
+            const _Label('ORGANIZATION'),
+            for (final m in state.memberships)
+              _Row(
+                icon: m.organization.id == membership?.organization.id ? Icons.radio_button_checked : Icons.radio_button_off,
+                title: m.organization.name,
+                subtitle: m.roleLabel,
+                onTap: m.organization.id == membership?.organization.id ? null : () => state.switchOrganization(m),
+              ),
+            _Row(icon: Icons.add_business_outlined, title: 'Create an organization', subtitle: 'Start a new workspace; you become its owner', onTap: () => _createOrganization(context)),
+            const SizedBox(height: 16),
             const _Label('WHAT YOU CAN DO HERE'),
             _Row(icon: Icons.photo_camera_outlined, title: 'Capture live evidence', subtitle: state.can('evidence.upload') ? 'Camera only, signed on this phone' : 'Not in your role', enabled: state.can('evidence.upload')),
             _Row(icon: Icons.fact_check_outlined, title: 'Review evidence and counts', subtitle: state.can('evidence.review') ? 'Approve, reject or request a re-shoot' : 'Not in your role', enabled: state.can('evidence.review')),
+            if (state.can('org.members.view'))
+              _Row(icon: Icons.groups_outlined, title: 'Members and roles', subtitle: state.can('org.members.manage') ? 'Add people by email, change roles, audit trail' : 'Who is in this organization', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const OrganizationScreen()))),
+            _Row(icon: Icons.fact_check_outlined, title: 'Check a claim', subtitle: 'Evidence and confirmed counts behind a sentence', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ClaimsScreen()))),
+            _Row(icon: Icons.description_outlined, title: 'Reports', subtitle: 'Cited reports across your projects', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ReportsScreen()))),
             _Row(icon: Icons.chat_bubble_outline, title: 'Ask FieldProof', subtitle: 'Questions answered from your organization\'s data', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AssistantScreen()))),
             if (state.can('evidence.upload'))
               _Row(icon: Icons.cloud_upload_outlined, title: 'My submissions', subtitle: state.queue.waiting == 0 ? 'Everything sent' : '${state.queue.waiting} waiting to send', onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SubmissionsScreen()))),
@@ -71,11 +78,29 @@ class ProfileScreen extends StatelessWidget {
               style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFB91C1C), minimumSize: const Size.fromHeight(48)),
             ),
             const SizedBox(height: 8),
-            const Center(child: Text('FieldProof Capture 1.0.0', style: TextStyle(color: Brand.stone, fontSize: 11))),
+            const Center(child: Text('FieldProof 2.0.0', style: TextStyle(color: Brand.stone, fontSize: 11))),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _createOrganization(BuildContext context) async {
+    final state = AppScope.of(context);
+    final input = await showModalBottomSheet<({String name, String type})>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Brand.paper,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) => const OrganizationFormSheet(),
+    );
+    if (input == null || !context.mounted) return;
+    try {
+      await state.createOrganization(name: input.name, type: input.type);
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${input.name} created; you are its owner')));
+    } on ApiException catch (error) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   String _initials(String name) => name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => w[0]).join().toUpperCase();

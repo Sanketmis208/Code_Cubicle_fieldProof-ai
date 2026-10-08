@@ -35,7 +35,7 @@ Collecting more photos does not help. What helps is a layer that checks each pho
 | **Search** | Plain-language search that understands synonyms ("sapling planting" finds "tree planting"), plus filters by trust, review status and capture source. |
 | **Before/after** | AI-described visible change, a slider, and a **Comparability Score** (same spot? same viewpoint?). Pairs that can't be compared fairly are marked "indicative only". |
 | **Live capture (web)** | A phone-browser camera page opened by QR code, with no install. It takes no file picker, records GPS and an inside-site badge, and uses server time. |
-| **Mobile app** | A Flutter app ([`mobile/`](mobile/README.md)) for the whole team: role-aware dashboard, projects with evidence and targets, in-app review, the assistant, and camera-only capture signed on the phone with trusted time, mock-GPS detection and an offline queue. |
+| **Mobile app** | A Flutter app ([`mobile/`](mobile/README.md)) with the same features as the web app for the same roles: organization and members by email, roles, audit trail, projects with team, sites, targets, in-app review, claim checker, cited reports, passports, the assistant, and camera-only capture signed on the phone with trusted time, mock-GPS detection and an offline queue. |
 
 ## Cloudinary is the evidence engine
 
@@ -65,7 +65,7 @@ Each asset in the web app has a **Cloudinary** tab showing what the upload analy
 ```
 backend/    Express 5 + TypeScript API, Prisma schema and migrations, 83 automated tests
 frontend/   React 19 + Vite web app
-mobile/     Flutter field-capture app (camera only, signed captures, offline queue)
+mobile/     Flutter app: the full product on the phone (org, roles, projects, review, proof) with camera-only capture
 scripts/    demo seed and release smoke test
 ```
 

@@ -95,6 +95,26 @@ class AppState extends ChangeNotifier {
 
   bool can(String permission) => membership?.can(permission) ?? false;
 
+  bool get hasOrganization => membership != null;
+
+  /// Creates an organization, re-reads the session and switches into it.
+  Future<void> createOrganization({required String name, required String type}) async {
+    final response = await workspace.createOrganization(name: name, type: type);
+    final created = (response['organization'] as Map<String, dynamic>)['id'] as String;
+    api.organizationId = created;
+    await store.write('organization', created);
+    await _applySession(await api.get('/auth/me'));
+  }
+
+  /// After a settings change (rename): keep the active membership current.
+  Future<void> reloadSession() async {
+    try {
+      await _applySession(await api.get('/auth/me'));
+    } on ApiException {
+      // Offline: the next refresh catches up.
+    }
+  }
+
   void _readSession(Map<String, dynamic> session) {
     user = AppUser.fromJson(session['user'] as Map<String, dynamic>);
     memberships = (session['memberships'] as List<dynamic>)

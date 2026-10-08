@@ -10,5 +10,11 @@ class AppConfig {
     defaultValue: 'http://10.0.2.2:4000/api',
   );
 
-  static const String appVersion = '1.0.0';
+  /// Where the web app lives, for public passport links the app shows.
+  /// Defaults to the API's origin without `/api`, which is right once both
+  /// are deployed behind one domain; override with --dart-define=WEB_URL=…
+  static const String _webUrlOverride = String.fromEnvironment('WEB_URL', defaultValue: '');
+  static String get webUrl => _webUrlOverride.isNotEmpty ? _webUrlOverride : apiUrl.replaceFirst(RegExp(r'/api/?$'), '');
+
+  static const String appVersion = '2.0.0';
 }
