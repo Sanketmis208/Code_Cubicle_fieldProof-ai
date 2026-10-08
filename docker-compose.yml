@@ -1,0 +1,79 @@
+# One-command production deploy on a domain:
+#   cp deploy/.env.production.example .env   (then fill it in)
+#   docker compose up -d --build
+# Caddy terminates HTTPS for DOMAIN automatically (Let's Encrypt) and routes
+# everything to the web container, which proxies /api to the API container.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fieldproof
+      POSTGRES_USER: fieldproof
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fieldproof -d fieldproof"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://fieldproof:${DB_PASSWORD}@db:5432/fieldproof?schema=public
+      DIRECT_URL: postgresql://fieldproof:${DB_PASSWORD}@db:5432/fieldproof?schema=public
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      FRONTEND_URL: https://${DOMAIN:?set DOMAIN in .env}
+      COOKIE_SAME_SITE: lax
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      AI_MODEL: ${AI_MODEL:-qwen/qwen3.8-27b}
+      AI_TOKENS_PER_MINUTE: ${AI_TOKENS_PER_MINUTE:-7000}
+      EXIF_DEFAULT_UTC_OFFSET: ${EXIF_DEFAULT_UTC_OFFSET:-+05:30}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

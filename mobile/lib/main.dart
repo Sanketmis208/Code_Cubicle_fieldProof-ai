@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/home_screen.dart';
+import 'screens/shell_screen.dart';
 import 'screens/login_screen.dart';
 import 'state/app_state.dart';
 import 'theme.dart';
@@ -39,7 +39,7 @@ class _Root extends StatelessWidget {
     return switch (state.status) {
       SessionStatus.loading => const Scaffold(body: Center(child: CircularProgressIndicator())),
       SessionStatus.signedOut => const LoginScreen(),
-      SessionStatus.signedIn => const HomeScreen(),
+      SessionStatus.signedIn => const ShellScreen(),
     };
   }
 }

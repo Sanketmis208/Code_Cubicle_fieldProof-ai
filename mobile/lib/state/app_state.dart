@@ -9,6 +9,7 @@ import '../services/capture_queue.dart';
 import '../services/device_identity.dart';
 import '../services/secure_store.dart';
 import '../services/trusted_clock.dart';
+import '../services/workspace_api.dart';
 
 enum SessionStatus { loading, signedOut, signedIn }
 
@@ -26,6 +27,7 @@ class AppState extends ChangeNotifier {
   final TrustedClock clock = TrustedClock();
   final CaptureQueue queue = CaptureQueue();
   late final DeviceIdentity device;
+  late final WorkspaceApi workspace = WorkspaceApi(api);
 
   SessionStatus status = SessionStatus.loading;
   AppUser? user;
@@ -91,16 +93,7 @@ class AppState extends ChangeNotifier {
     await _applySession(response);
   }
 
-  /// Field workers join with the invite code their coordinator shared.
-  Future<void> joinWithInvite({required String name, required String email, required String password, required String code}) async {
-    await api.post('/auth/register', {
-      'name': name.trim(),
-      'email': email.trim().toLowerCase(),
-      'password': password,
-      'inviteCode': code.trim(),
-    });
-    await signIn(email, password);
-  }
+  bool can(String permission) => membership?.can(permission) ?? false;
 
   void _readSession(Map<String, dynamic> session) {
     user = AppUser.fromJson(session['user'] as Map<String, dynamic>);

@@ -4,8 +4,8 @@ import '../api/api_client.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 
-/// Sign in, or join an organization with the invite code a coordinator shared
-/// (field workers rarely have a work email or a laptop).
+/// Sign in with the email and password set up through the link an admin sent.
+/// There is no sign-up here: accounts are created by an organization admin.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -15,21 +15,17 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
-  final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  final _code = TextEditingController();
-  bool _joining = false;
   bool _busy = false;
   bool _showPassword = false;
   String? _error;
+  String? _notice;
 
   @override
   void dispose() {
-    _name.dispose();
     _email.dispose();
     _password.dispose();
-    _code.dispose();
     super.dispose();
   }
 
@@ -39,13 +35,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _notice = null;
     });
     try {
-      if (_joining) {
-        await state.joinWithInvite(name: _name.text, email: _email.text, password: _password.text, code: _code.text);
-      } else {
-        await state.signIn(_email.text, _password.text);
-      }
+      await state.signIn(_email.text, _password.text);
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);
@@ -57,7 +50,28 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  String? _required(String? value) => (value == null || value.trim().isEmpty) ? 'Required' : null;
+  Future<void> _forgot() async {
+    final email = _email.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Enter your email first, then tap "Forgot password".');
+      return;
+    }
+    final state = AppScope.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await state.workspace.forgotPassword(email);
+      if (!mounted) return;
+      setState(() => _notice = 'If $email has an account, a reset link is on its way. Open it on any device to choose a new password.');
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,76 +96,56 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text('FIELDPROOF', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: -0.5)),
                   ]),
                   const SizedBox(height: 32),
-                  Text(
-                    _joining ? 'Join your team' : 'Capture evidence\nyou can stand behind.',
-                    style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, height: 1.05, color: Brand.ink),
+                  const Text(
+                    'Evidence you can\nstand behind.',
+                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, height: 1.05, color: Brand.ink),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    _joining
-                        ? 'Enter the invite code your coordinator sent you.'
-                        : 'Photos are taken live, signed on this phone, and stamped with place and trusted time.',
-                    style: const TextStyle(color: Brand.stone),
+                  const Text(
+                    'Sign in with the email your organization added. New here? Ask your admin to add you; you will get an email to choose a password.',
+                    style: TextStyle(color: Brand.stone),
                   ),
                   const SizedBox(height: 28),
-                  if (_joining) ...[
-                    TextFormField(
-                      controller: _code,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(labelText: 'Invite code', hintText: 'ABCD-2345'),
-                      validator: (value) => (value ?? '').replaceAll(RegExp('[^A-Za-z0-9]'), '').length < 8 ? 'Enter the 8-character code' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _name,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(labelText: 'Your name'),
-                      validator: (value) => (value ?? '').trim().length < 2 ? 'Enter your name' : null,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                   TextFormField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
                     decoration: const InputDecoration(labelText: 'Email'),
-                    validator: _required,
+                    validator: (value) => (value == null || !value.contains('@')) ? 'Enter your email' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _password,
                     obscureText: !_showPassword,
                     autofillHints: const [AutofillHints.password],
+                    onFieldSubmitted: (_) => _busy ? null : _submit(),
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      helperText: _joining ? '8+ characters, one capital letter and one number' : null,
                       suffixIcon: IconButton(
                         tooltip: _showPassword ? 'Hide password' : 'Show password',
                         icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
                         onPressed: () => setState(() => _showPassword = !_showPassword),
                       ),
                     ),
-                    validator: _required,
+                    validator: (value) => (value == null || value.isEmpty) ? 'Enter your password' : null,
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 16),
                     Text(_error!, style: const TextStyle(color: Color(0xFFB91C1C), fontWeight: FontWeight.w600)),
+                  ],
+                  if (_notice != null) ...[
+                    const SizedBox(height: 16),
+                    Text(_notice!, style: const TextStyle(color: Color(0xFF065F46), fontWeight: FontWeight.w600)),
                   ],
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _busy ? null : _submit,
                     child: _busy
                         ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                        : Text(_joining ? 'Join and sign in' : 'Sign in'),
+                        : const Text('Sign in'),
                   ),
                   const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _busy ? null : () => setState(() {
-                      _joining = !_joining;
-                      _error = null;
-                    }),
-                    child: Text(_joining ? 'I already have an account' : 'I have an invite code'),
-                  ),
+                  TextButton(onPressed: _busy ? null : _forgot, child: const Text('Forgot password?')),
                 ],
               ),
             ),
