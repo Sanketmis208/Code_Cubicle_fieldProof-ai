@@ -32,21 +32,14 @@ export const updateMemberSchema = z.object({
   body: z.object({ role: z.nativeEnum(OrgRole) }),
 });
 
-export const createInviteSchema = z.object({
+export const addMemberSchema = z.object({
   params: orgParams,
   body: z.object({
-    // Ownership is transferred by promoting an existing member, never by invite.
-    role: z.nativeEnum(OrgRole).refine((role) => role !== 'OWNER', 'Owners cannot be invited; promote a member instead'),
-    email: z.string().trim().toLowerCase().email().max(254).optional().or(z.literal('').transform(() => undefined)),
-    expiresInDays: z.number().int().min(1).max(30).default(7),
-    maxUses: z.number().int().min(1).max(200).default(1),
+    name: z.string().trim().min(2).max(80),
+    email: z.string().trim().toLowerCase().email().max(254),
+    // Ownership is transferred by promoting an existing member.
+    role: z.nativeEnum(OrgRole).refine((role) => role !== 'OWNER', 'Owners cannot be added directly; promote a member instead'),
   }),
-});
-
-export const inviteParamsSchema = z.object({ params: orgParams.extend({ inviteId: id }) });
-
-export const joinOrgSchema = z.object({
-  body: z.object({ code: z.string().trim().min(8).max(20) }),
 });
 
 export const projectMemberSchema = z.object({

@@ -16,8 +16,9 @@ const { app } = await import('../../src/app.js');
 const { prisma } = await import('../../src/lib/prisma.js');
 const { cloudinaryService } = await import('../../src/services/cloudinary.service.js');
 const { aiService } = await import('../../src/services/ai.service.js');
+const { outbox } = await import('../../src/services/mail.service.js');
 
-export { prisma, cloudinaryService, aiService };
+export { prisma, cloudinaryService, aiService, outbox };
 
 /** What the fake Cloudinary saw; tests read and tweak this. */
 export const cloud = {
@@ -120,6 +121,8 @@ export function installFakes() {
       visibleObservations: [{ text: 'Young saplings are visible', evidence: ['E1', 'E2'] }],
       comparisonFindings: [], evidenceGaps: [], methodologyNote: 'Generated from stored evidence for tests only.',
     }),
+    assist: async (messages: Array<{ content: string }>, facts: { awaitingReview: number }) =>
+      `You asked: ${messages.at(-1)?.content}. ${facts.awaitingReview} item(s) await review.`,
     parseClaim: async () => ai.nextClaim ?? ({
       activities: ['tree planting'], locationTerms: [], dateFrom: null, dateTo: null, quantity: null, keywords: [],
     }),
@@ -134,6 +137,7 @@ export async function resetDb() {
   cloud.deleted.length = 0;
   cloud.nextResponse.length = 0;
   cloud.failUpload = false;
+  outbox.length = 0;
   cloud.rejectQualityAnalysis = false;
   cloud.options.length = 0;
   ai.imageUrls.length = 0;
@@ -229,15 +233,37 @@ export const projectInput = (overrides: Record<string, unknown> = {}) => ({
 
 type Role = 'OWNER' | 'ADMIN' | 'PROGRAM_MANAGER' | 'VERIFIER' | 'FIELD_WORKER' | 'VIEWER';
 
-/** An organization with an owner and one member per requested role, all joined by invite. */
+/** The setup link from the most recent email to `email` (SMTP is not configured in tests, so mail stays in the outbox). */
+export function setupLinkFor(email: string) {
+  const mail = [...outbox].reverse().find((m) => m.to === email);
+  const match = mail?.text.match(/https?:\/\/\S+\/setup\/([A-Za-z0-9_-]+)/);
+  if (!match) throw new Error(`no setup link mailed to ${email}`);
+  return { token: match[1]!, url: match[0] };
+}
+
+/**
+ * Adds a member the way an admin does: by email. The new person then opens
+ * the emailed link and chooses a password, which also signs them in.
+ */
+export async function addMember(owner: Client, orgId: string, role: Role, name: string, password = 'Password123') {
+  userCounter += 1;
+  const email = `member${userCounter}.${Date.now()}@example.test`;
+  const added = await owner.post(`/orgs/${orgId}/members`, { name, email, role });
+  if (added.status !== 201) throw new Error(`add member failed: ${added.status} ${JSON.stringify(added.body)}`);
+  const { token } = setupLinkFor(email);
+  const client = new Client();
+  const done = await client.post(`/auth/setup/${token}`, { password });
+  if (done.status !== 200) throw new Error(`setup failed: ${done.status} ${JSON.stringify(done.body)}`);
+  client.user = { ...done.body.user, email, password };
+  client.memberships = done.body.memberships;
+  return client;
+}
+
+/** An organization with an owner and one member per requested role, each added by email. */
 export async function orgWith(name: string, roles: Role[] = []) {
   const owner = await registerUser(`${name} owner`, { organizationName: name });
   const orgId: string = owner.memberships[0].organization.id;
   const members = {} as Record<Role, Client>;
-  for (const role of roles) {
-    const invite = await owner.post(`/orgs/${orgId}/invites`, { role });
-    if (invite.status !== 201) throw new Error(`invite failed: ${invite.status} ${JSON.stringify(invite.body)}`);
-    members[role] = await registerUser(`${name} ${role}`, { inviteCode: invite.body.code });
-  }
+  for (const role of roles) members[role] = await addMember(owner, orgId, role, `${name} ${role}`);
   return { owner, orgId, members };
 }

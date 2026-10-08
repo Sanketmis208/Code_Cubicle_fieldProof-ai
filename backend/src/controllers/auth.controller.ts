@@ -45,3 +45,19 @@ export const me: RequestHandler = async (req, res) => {
 export const logout: RequestHandler = (_req, res) => {
   res.clearCookie('fieldproof_token', { ...cookieOptions, maxAge: undefined }).status(204).send();
 };
+
+export const setupPreview: RequestHandler = async (req, res) => {
+  res.json({ setup: await authService.setupPreview(req.params.token as string) });
+};
+
+/** Choosing a password through an emailed link also signs the person in. */
+export const completeSetup: RequestHandler = async (req, res) => {
+  const user = await authService.completeSetup(req.params.token as string, req.body.password);
+  const memberships = await authService.memberships(user.id);
+  res.cookie('fieldproof_token', authService.token(user.id), cookieOptions).json({ user, memberships });
+};
+
+export const forgotPassword: RequestHandler = async (req, res) => {
+  await authService.requestPasswordReset(req.body.email);
+  res.json({ ok: true, message: 'If that email has an account, a reset link is on its way.' });
+};

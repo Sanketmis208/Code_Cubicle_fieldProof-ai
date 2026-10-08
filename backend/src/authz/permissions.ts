@@ -9,7 +9,6 @@ export const PERMISSIONS = [
   'org.settings',
   'org.members.view',
   'org.members.manage',
-  'org.invites.manage',
   'audit.view',
   'project.create',
   'project.edit',

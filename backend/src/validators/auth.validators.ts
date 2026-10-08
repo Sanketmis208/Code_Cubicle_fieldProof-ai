@@ -9,8 +9,14 @@ export const registerSchema = z.object({
     email,
     password,
     organizationName: z.string().trim().max(120).optional().or(z.literal('')),
-    inviteCode: z.string().trim().min(8).max(20).optional().or(z.literal('').transform(() => undefined)),
   }),
 });
 
 export const loginSchema = z.object({ body: z.object({ email, password: z.string().min(1).max(72) }) });
+
+export const setupTokenSchema = z.object({ params: z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{20,64}$/) }) });
+export const completeSetupSchema = z.object({
+  params: z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{20,64}$/) }),
+  body: z.object({ password }),
+});
+export const forgotPasswordSchema = z.object({ body: z.object({ email }) });

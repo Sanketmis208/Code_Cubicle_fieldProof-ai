@@ -95,6 +95,10 @@ model User {
   organizationName   String?
   role               String?
   projects           Project[]
+  /// Null while an account provisioned by an admin still has to choose its password.
+  passwordSetAt      DateTime?
+  phone              String?
+  accountSetups      AccountSetup[]
   memberships        Membership[]
   projectAssignments ProjectMember[] @relation("ProjectAssignee")
   uploadedAssets     Asset[]         @relation("AssetUploader")
@@ -115,7 +119,6 @@ model Organization {
   personal    Boolean      @default(false)
   createdById String?
   memberships Membership[]
-  invites     Invite[]
   projects    Project[]
   auditLogs   AuditLog[]
   createdAt   DateTime     @default(now())
@@ -135,27 +138,6 @@ model Membership {
 
   @@unique([organizationId, userId])
   @@index([userId])
-}
-
-model Invite {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// SHA-256 of the normalized code; the code itself is shown once and never stored.
-  codeHash       String       @unique
-  /// Last characters of the code so admins can tell invites apart.
-  codeHint       String
-  role           OrgRole
-  /// When set, only a user with this email can redeem the invite.
-  email          String?
-  expiresAt      DateTime
-  maxUses        Int          @default(1)
-  usedCount      Int          @default(0)
-  revokedAt      DateTime?
-  createdById    String
-  createdAt      DateTime     @default(now())
-
-  @@index([organizationId, createdAt])
 }
 
 /// Assignment of a member to a project. Program managers, verifiers and field
@@ -202,6 +184,7 @@ model Project {
   members        ProjectMember[]
   sites          Site[]
   eventClusters  EventCluster[]
+  targets        Target[]
   name           String
   description    String?
   location       String?
@@ -304,6 +287,7 @@ model Site {
   longitude Float
   radiusM   Int      @default(500)
   assets    Asset[]
+  tallies   Tally[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -324,6 +308,7 @@ model EventCluster {
   representativeIds Json     @default("[]")
   label             String?
   assets            Asset[]
+  tallies           Tally[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -458,4 +443,58 @@ model Device {
   createdAt  DateTime  @default(now())
 
   @@index([userId])
+}
+
+/// A one-time link emailed to a member added by an admin, used to choose a
+/// password. Only the hash is stored; the link itself is sent once.
+model AccountSetup {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// A countable outcome a project commits to ("500 saplings planted"). Photos
+/// show that an activity happened; tallies record how many, batch by batch.
+model Target {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label       String
+  unit        String
+  targetCount Int
+  dueDate     DateTime?
+  tallies     Tally[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId])
+}
+
+/// One batch counted in the field, linked to the site and the event (photos)
+/// that document it, so a quantity claim can be traced like any other evidence.
+model Tally {
+  id             String        @id @default(cuid())
+  targetId       String
+  target         Target        @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  count          Int
+  recordedAt     DateTime
+  siteId         String?
+  site           Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  eventClusterId String?
+  eventCluster   EventCluster? @relation(fields: [eventClusterId], references: [id], onDelete: SetNull)
+  note           String?
+  recordedById   String?
+  reviewStatus   ReviewStatus  @default(PENDING)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([targetId, recordedAt])
 }

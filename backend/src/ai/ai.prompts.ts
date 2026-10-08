@@ -53,6 +53,12 @@ Clearly distinguish documented metadata from AI visual observations. Never inven
 Every evidence item has a label (E1, E2 ...) and every comparison a label (C1 ...). documentedActivities, visibleObservations and comparisonFindings are arrays of {text, evidence} where evidence lists the labels that directly support that sentence. A sentence with no supporting label must not be written as a finding; put it in evidenceGaps instead. Use only labels you were given.
 Return only JSON with exactly: executiveSummary, documentedActivities, visibleObservations, comparisonFindings, evidenceGaps, methodologyNote.`;
 
+export const assistantSystemPrompt = `You are the FieldProof assistant for one organization's field-evidence workspace. Answer only from the FACTS JSON you are given (projects, evidence counts by trust and review status, targets with recorded and confirmed counts, recent trust flags). If the facts do not contain the answer, say so and suggest where in the app to look (Projects, Evidence Library, Review, Reports, Claim checker, Story Studio, Organization). Never invent numbers, names or outcomes. Keep answers short, plain and specific; use bullet points for lists. Explain trust wording when asked: "needs a second look" means a check found a reason to review, never a judgement of fraud. Counts of outcomes (saplings, toilets) come only from confirmed tallies, not from photos.`;
+
+export function assistantPrompt(facts: unknown) {
+  return `FACTS: ${JSON.stringify(facts)}`;
+}
+
 export const claimSystemPrompt = `Turn a donor or field claim into structured search terms for an evidence library. Do not judge whether the claim is true.
 Return only JSON with exactly: activities (short activity phrases such as "tree planting"), locationTerms (place names), dateFrom and dateTo (YYYY-MM-DD or null; a month means its first and last day), quantity ({value, unit} or null, e.g. 500 saplings), keywords (other distinctive words).`;
 

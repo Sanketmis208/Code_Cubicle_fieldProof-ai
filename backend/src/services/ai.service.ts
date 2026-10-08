@@ -30,6 +30,8 @@ import {
   videoAnalysisPrompt,
   claimPrompt,
   claimSystemPrompt,
+  assistantPrompt,
+  assistantSystemPrompt,
 } from "../ai/ai.prompts.js";
 
 const client = env.GROQ_API_KEY
@@ -237,6 +239,21 @@ export const aiService = {
       impactReportPrompt(snapshot),
       1800,
     );
+  },
+  /** Plain-text answer grounded in the organization's own numbers. */
+  async assist(messages: Array<{ role: "user" | "assistant"; content: string }>, facts: unknown): Promise<string> {
+    const groq = requireClient();
+    const system = `${assistantSystemPrompt}\n${assistantPrompt(facts)}`;
+    const estimate = Math.ceil((system.length + messages.reduce((n, m) => n + m.content.length, 0)) / 4) + 600;
+    return paced(estimate, async () => {
+      const completion = await groq.chat.completions.create({
+        model: env.AI_MODEL, temperature: 0.2, max_completion_tokens: 600,
+        messages: [{ role: "system", content: system }, ...messages.slice(-10)],
+      }).catch(providerError);
+      const text = completion.choices[0]?.message?.content?.trim();
+      if (!text) throw new AppError(502, "The assistant returned an empty answer");
+      return { value: text, tokens: completion.usage?.total_tokens };
+    });
   },
   parseClaim(claim: string, knownActivities: string[]): Promise<ClaimIntent> {
     return structuredRequest(

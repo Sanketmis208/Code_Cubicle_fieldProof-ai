@@ -1,27 +1,14 @@
-import { createHash, randomBytes, randomInt } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import type { OrgRole, OrgType, Prisma } from '@prisma/client';
-import { ORG_WIDE_ROLES, ROLE_PERMISSIONS } from '../authz/permissions.js';
+import { ORG_WIDE_ROLES, ROLE_LABEL, ROLE_PERMISSIONS } from '../authz/permissions.js';
+import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../utils/app-error.js';
 import { auditService } from './audit.service.js';
+import { accountSetupMail, addedToOrganizationMail, mailService } from './mail.service.js';
 
 type Tx = Prisma.TransactionClient;
-
-// No 0/O, 1/I/L or U: codes get read aloud and typed on cheap phones.
-const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
-
-export function normalizeInviteCode(code: string) {
-  return code.toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-export function hashInviteCode(code: string) {
-  return createHash('sha256').update(normalizeInviteCode(code)).digest('hex');
-}
-
-export function generateInviteCode() {
-  const chars = Array.from({ length: 8 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
-  return `${chars.slice(0, 4)}-${chars.slice(4)}`;
-}
 
 function slugify(name: string) {
   const base = name
@@ -80,45 +67,70 @@ export async function createOrganizationTx(
   return organization;
 }
 
-/** Fails fast (no side effects) so sign-up can reject a bad code before creating the user. */
-export async function assertInviteUsable(code: string, email: string) {
-  const invite = await prisma.invite.findUnique({ where: { codeHash: hashInviteCode(code) } });
-  checkInvite(invite, email);
-  return invite!;
+
+const SETUP_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+export const setupUrl = (token: string) => `${env.FRONTEND_URL.replace(/\/$/, '')}/setup/${token}`;
+
+/** Issues a fresh one-time setup link for a user; older links keep working until they expire or are used. */
+export async function issueSetupToken(tx: Tx, userId: string, createdById: string | null, ttlMs = SETUP_TTL_MS) {
+  const token = randomBytes(24).toString('base64url');
+  await tx.accountSetup.create({
+    data: { userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + ttlMs), createdById },
+  });
+  return token;
 }
 
-function checkInvite(
-  invite: { revokedAt: Date | null; expiresAt: Date; email: string | null; usedCount: number; maxUses: number } | null,
-  email: string,
-) {
-  // Unknown and revoked look the same, so a revoked code reveals nothing.
-  if (!invite || invite.revokedAt) throw new AppError(404, 'This invite code is not valid', undefined, 'INVITE_INVALID');
-  if (invite.expiresAt.getTime() <= Date.now()) throw new AppError(410, 'This invite code has expired', undefined, 'INVITE_EXPIRED');
-  if (invite.usedCount >= invite.maxUses) throw new AppError(410, 'This invite code has already been used', undefined, 'INVITE_USED');
-  if (invite.email && invite.email.toLowerCase() !== email.toLowerCase())
-    throw new AppError(403, 'This invite was issued for a different email address', undefined, 'INVITE_EMAIL_MISMATCH');
-}
-
-/** Redeems an invite for `user` inside `tx`. Safe against two people racing for the last use. */
-export async function redeemInviteTx(tx: Tx, code: string, user: { id: string; email: string }) {
-  const invite = await tx.invite.findUnique({
-    where: { codeHash: hashInviteCode(code) },
-    include: { organization: { select: organizationSelect } },
+/**
+ * Adds a member by email. A new person gets an account with no usable
+ * password and an emailed setup link; an existing FieldProof user is simply
+ * added and told. Returns the link too, so an admin can pass it on by hand
+ * when email is not configured.
+ */
+export async function provisionMember(input: {
+  organizationId: string; actorId: string; name: string; email: string; role: OrgRole;
+}) {
+  const [organization, actor, existing] = await Promise.all([
+    prisma.organization.findUniqueOrThrow({ where: { id: input.organizationId }, select: { name: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: input.actorId }, select: { name: true } }),
+    prisma.user.findUnique({ where: { email: input.email }, select: { id: true, name: true, passwordSetAt: true } }),
+  ]);
+  const result = await prisma.$transaction(async (tx) => {
+    let userId = existing?.id;
+    let created = false;
+    if (!userId) {
+      // A random password nobody knows; it is replaced through the setup link.
+      const passwordHash = await bcrypt.hash(randomBytes(32).toString('base64url'), 12);
+      const user = await tx.user.create({ data: { name: input.name, email: input.email, passwordHash }, select: { id: true } });
+      userId = user.id;
+      created = true;
+    }
+    const membership = await tx.membership.findUnique({
+      where: { organizationId_userId: { organizationId: input.organizationId, userId } },
+    });
+    if (membership) throw new AppError(409, `${input.email} is already a member of this organization`, undefined, 'ALREADY_MEMBER');
+    await tx.membership.create({ data: { organizationId: input.organizationId, userId, role: input.role } });
+    // Someone added before they ever chose a password gets a fresh link too.
+    const needsSetup = created || !existing?.passwordSetAt;
+    const token = needsSetup ? await issueSetupToken(tx, userId, input.actorId) : null;
+    await auditService.recordTx(tx, {
+      organizationId: input.organizationId, actorId: input.actorId, action: 'member.added',
+      entityType: 'Membership', entityId: userId, metadata: { role: input.role, email: input.email, newAccount: created },
+    });
+    return { userId, created, token };
   });
-  checkInvite(invite, user.email);
-  const existing = await tx.membership.findUnique({
-    where: { organizationId_userId: { organizationId: invite!.organizationId, userId: user.id } },
-  });
-  if (existing) throw new AppError(409, `You are already a member of ${invite!.organization.name}`, undefined, 'ALREADY_MEMBER');
-  const claimed = await tx.invite.updateMany({
-    where: { id: invite!.id, revokedAt: null, usedCount: { lt: invite!.maxUses } },
-    data: { usedCount: { increment: 1 } },
-  });
-  if (!claimed.count) throw new AppError(410, 'This invite code has already been used', undefined, 'INVITE_USED');
-  await tx.membership.create({ data: { organizationId: invite!.organizationId, userId: user.id, role: invite!.role } });
-  await auditService.recordTx(tx, {
-    organizationId: invite!.organizationId, actorId: user.id, action: 'member.joined',
-    entityType: 'Membership', entityId: user.id, metadata: { role: invite!.role, inviteId: invite!.id },
-  });
-  return { organization: invite!.organization, role: invite!.role };
+  const roleLabel = ROLE_LABEL[input.role];
+  const name = existing?.name ?? input.name;
+  const mail = result.token
+    ? accountSetupMail({ to: input.email, name, organization: organization.name, role: roleLabel, url: setupUrl(result.token), invitedBy: actor.name })
+    : addedToOrganizationMail({ to: input.email, name, organization: organization.name, role: roleLabel, url: env.FRONTEND_URL, invitedBy: actor.name });
+  const { sent } = await mailService.send(mail);
+  return {
+    userId: result.userId,
+    newAccount: result.created,
+    emailSent: sent,
+    // Only returned when the mail could not be sent, so the admin can hand it over.
+    setupLink: result.token && !sent ? setupUrl(result.token) : null,
+  };
 }

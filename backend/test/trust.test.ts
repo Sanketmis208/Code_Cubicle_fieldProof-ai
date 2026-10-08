@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { ai, cloud, pngFile, prisma, projectInput, registerUser, resetDb, startServer, stopServer, uploadForm } from './support/harness.js';
+import { addMember, ai, cloud, pngFile, prisma, projectInput, registerUser, resetDb, startServer, stopServer, uploadForm } from './support/harness.js';
 import { jpegFile, jpegWithExif } from './support/jpeg.js';
 import { refreshCluster } from '../src/trust/service.js';
 
@@ -164,8 +164,7 @@ describe('sites and project dates', () => {
   it('only lets project editors manage sites', async () => {
     const owner = await registerUser('Owner', { organizationName: 'Green Roots' });
     const orgId = owner.memberships[0].organization.id;
-    const invite = await owner.post(`/orgs/${orgId}/invites`, { role: 'VIEWER' });
-    const viewer = await registerUser('Viewer', { inviteCode: invite.body.code });
+    const viewer = await addMember(owner, orgId, 'VIEWER', 'Viewer');
     const projectId = await project(owner, 'Sites', false);
     assert.equal((await viewer.post(`/projects/${projectId}/sites`, { name: 'Nope', ...JAIPUR })).status, 403);
     assert.equal((await viewer.get(`/projects/${projectId}/sites`)).status, 200);

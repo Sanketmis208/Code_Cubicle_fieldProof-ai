@@ -22,6 +22,13 @@ const envSchema = z.object({
    * proxied). Use none only when they are on different domains; it forces Secure.
    */
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  // Outgoing email (member setup links, password resets). Optional: without it
+  // the admin is shown the link to pass on by hand.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
   EXIF_DEFAULT_UTC_OFFSET: z.string().regex(/^[+-]\d{2}:\d{2}$/).default('+05:30'),
 }).superRefine((value, context) => {
   if (value.NODE_ENV !== 'production') return;

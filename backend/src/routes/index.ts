@@ -12,6 +12,8 @@ import { reviewRouter } from './review.routes.js';
 import { claimsRouter } from './claims.routes.js';
 import { storyRouter } from './story.routes.js';
 import { captureRouter } from './capture.routes.js';
+import { projectTargetRouter, targetRouter } from './target.routes.js';
+import { assistantRouter } from './assistant.routes.js';
 import { publicPassport } from '../controllers/passport.controller.js';
 import { publicLimiter } from '../middleware/rate-limits.js';
 
@@ -23,6 +25,9 @@ apiRouter.use('/review', requireAuth, reviewRouter);
 apiRouter.use('/claims', requireAuth, claimsRouter);
 apiRouter.use('/story', requireAuth, storyRouter);
 apiRouter.use('/capture', requireAuth, captureRouter);
+apiRouter.use('/projects/:id/targets', requireAuth, projectTargetRouter);
+apiRouter.use('/targets', requireAuth, targetRouter);
+apiRouter.use('/assistant', requireAuth, assistantRouter);
 // Public, unauthenticated: the passport behind a campaign card's QR code.
 apiRouter.get('/public/passport/:token', publicLimiter, asyncHandler(publicPassport));
 apiRouter.use('/projects', requireAuth, projectRouter);

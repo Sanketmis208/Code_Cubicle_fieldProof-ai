@@ -26,12 +26,14 @@ export const aiLimiter = rateLimit({
   message: { error: { message: "AI request limit reached. Try again shortly." } },
 });
 
-/** Invite codes are short enough to type, so guessing must be throttled. */
-export const inviteJoinLimiter = rateLimit({
-  ...common,
+/** Setup and reset links are unauthenticated; throttle per IP. */
+export const setupLimiter = rateLimit({
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: () => env.NODE_ENV === "test",
   windowMs: 15 * 60 * 1000,
-  limit: 10,
-  message: { error: { message: "Too many invite attempts. Try again in a few minutes." } },
+  limit: 20,
+  message: { error: { message: "Too many attempts. Try again in a few minutes." } },
 });
 
 /** Public passport links are unauthenticated; throttle per IP. */

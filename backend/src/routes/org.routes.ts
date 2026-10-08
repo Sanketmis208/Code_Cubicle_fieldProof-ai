@@ -1,26 +1,21 @@
 import { Router } from 'express';
 import {
-  createInvite,
+  addMember,
   createOrganization,
   getOrganization,
-  joinOrganization,
   listAuditLog,
-  listInvites,
   listMembers,
   listMyOrganizations,
   removeMember,
-  revokeInvite,
+  resendSetup,
   updateMember,
   updateOrganization,
 } from '../controllers/org.controller.js';
-import { inviteJoinLimiter } from '../middleware/rate-limits.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {
-  createInviteSchema,
+  addMemberSchema,
   createOrgSchema,
-  inviteParamsSchema,
-  joinOrgSchema,
   memberParamsSchema,
   orgIdSchema,
   updateMemberSchema,
@@ -30,13 +25,11 @@ import {
 export const orgRouter = Router();
 orgRouter.get('/', asyncHandler(listMyOrganizations));
 orgRouter.post('/', validate(createOrgSchema), asyncHandler(createOrganization));
-orgRouter.post('/join', inviteJoinLimiter, validate(joinOrgSchema), asyncHandler(joinOrganization));
 orgRouter.get('/:orgId', validate(orgIdSchema), asyncHandler(getOrganization));
 orgRouter.patch('/:orgId', validate(updateOrgSchema), asyncHandler(updateOrganization));
 orgRouter.get('/:orgId/members', validate(orgIdSchema), asyncHandler(listMembers));
+orgRouter.post('/:orgId/members', validate(addMemberSchema), asyncHandler(addMember));
+orgRouter.post('/:orgId/members/:userId/resend-setup', validate(memberParamsSchema), asyncHandler(resendSetup));
 orgRouter.patch('/:orgId/members/:userId', validate(updateMemberSchema), asyncHandler(updateMember));
 orgRouter.delete('/:orgId/members/:userId', validate(memberParamsSchema), asyncHandler(removeMember));
-orgRouter.get('/:orgId/invites', validate(orgIdSchema), asyncHandler(listInvites));
-orgRouter.post('/:orgId/invites', validate(createInviteSchema), asyncHandler(createInvite));
-orgRouter.delete('/:orgId/invites/:inviteId', validate(inviteParamsSchema), asyncHandler(revokeInvite));
 orgRouter.get('/:orgId/audit', validate(orgIdSchema), asyncHandler(listAuditLog));
