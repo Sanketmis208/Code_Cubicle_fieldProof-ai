@@ -24,6 +24,7 @@ import { UploadDialog } from "@/components/upload-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { AssetDetailDialog } from "@/components/asset-detail-dialog";
 import { EvidenceCard } from "@/components/evidence-card";
+import { Reveal } from "@/components/motion";
 import type { Asset } from "@/types";
 
 export function MediaLibraryPage() {
@@ -441,9 +442,9 @@ export function MediaLibraryPage() {
                 : "space-y-3"
             }
           >
-            {assets.map((asset) => (
+            {assets.map((asset, index) => (
+              <Reveal key={asset.id} index={index}>
               <EvidenceCard
-                key={asset.id}
                 asset={asset}
                 view={view}
                 selected={selectedIds.has(asset.id)}
@@ -454,6 +455,7 @@ export function MediaLibraryPage() {
                   favorite.mutate({ id: asset.id, value: !asset.favorite })
                 : undefined}
               />
+              </Reveal>
             ))}
           </div>
           {displayed && displayed.pagination.pages > 1 && (

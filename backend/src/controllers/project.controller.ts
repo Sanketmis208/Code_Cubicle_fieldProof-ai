@@ -401,3 +401,16 @@ export const deleteSite: RequestHandler = async (req, res) => {
   });
   res.status(204).send();
 };
+
+/** The project's photo events, newest first, for linking a tally to the day's photos. */
+export const listProjectEvents: RequestHandler = async (req, res) => {
+  const projectId = req.params.id as string;
+  await actorForProject(req.userId!, projectId);
+  const events = await prisma.eventCluster.findMany({
+    where: { projectId },
+    orderBy: { startedAt: "desc" },
+    take: 100,
+    select: { id: true, startedAt: true, endedAt: true, assetCount: true, representativeIds: true, label: true },
+  });
+  res.json({ events });
+};

@@ -70,24 +70,27 @@ const org = owner.memberships.find((m) => m.organization.name === "Green Roots F
 owner.session.org = org.organization.id;
 console.log(`  ${org.organization.name} (${owner.created ? "created" : "existing"})`);
 
-/** Existing account: sign in and join by code if needed. New account: register straight into the org with the code. */
+/**
+ * Adds a member by email the way an admin does. SMTP is usually not configured
+ * locally, so the API hands back the setup link; we open it to choose the
+ * password. An account that already exists just signs in.
+ */
 async function member(role, name, email) {
   const session = new Session(role);
-  let signedIn = null;
   try {
-    signedIn = await session.request("POST", "/auth/login", { email, password: PASSWORD });
+    const signedIn = await session.request("POST", "/auth/login", { email, password: PASSWORD });
+    if (!signedIn.memberships.some((m) => m.organization.id === org.organization.id))
+      await owner.session.request("POST", `/orgs/${org.organization.id}/members`, { name, email, role });
+    const refreshed = await session.request("GET", "/auth/me");
+    return { session, user: refreshed.user, memberships: refreshed.memberships, created: false };
   } catch { /* not registered yet */ }
-  if (signedIn?.memberships.some((m) => m.organization.id === org.organization.id))
-    return { session, user: signedIn.user, memberships: signedIn.memberships, created: false };
-  const invite = await owner.session.request("POST", `/orgs/${org.organization.id}/invites`, { role });
-  if (signedIn) {
-    await session.request("POST", "/orgs/join", { code: invite.code });
-    return { session, user: signedIn.user, memberships: signedIn.memberships, created: false };
-  }
-  const result = await session.request("POST", "/auth/register", { name, email, password: PASSWORD, inviteCode: invite.code });
-  return { session, user: result.user, memberships: result.memberships, created: true };
+  const added = await owner.session.request("POST", `/orgs/${org.organization.id}/members`, { name, email, role });
+  if (!added.setupLink) throw new Error(`${email}: setup email was sent instead; set the password from that link, then re-run`);
+  const token = added.setupLink.split("/setup/")[1];
+  const done = await session.request("POST", `/auth/setup/${token}`, { password: PASSWORD });
+  return { session, user: done.user, memberships: done.memberships, created: true };
 }
-step("Team (joined by invite code)");
+step("Team (added by email; setup links completed automatically)");
 const field = await member("FIELD_WORKER", "Sunita Devi", "field@greenroots.demo");
 const verifier = await member("VERIFIER", "Ravi Kumar", "verifier@greenroots.demo");
 for (const person of [field, verifier]) person.session.org = org.organization.id;

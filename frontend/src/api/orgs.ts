@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { AuditEntry, Invite, Membership, OrgMember, OrgRole, OrgType, Organization, ProjectTeam } from '@/types';
+import type { AddMemberResult, AuditEntry, Membership, OrgMember, OrgRole, OrgType, Organization, ProjectTeam } from '@/types';
 
 const json = (body: unknown) => JSON.stringify(body);
 
@@ -7,8 +7,6 @@ export const orgsApi = {
   mine: () => api<{ memberships: Membership[] }>('/orgs'),
   create: (input: { name: string; type?: OrgType }) =>
     api<{ organization: Organization; role: OrgRole }>('/orgs', { method: 'POST', body: json(input) }),
-  join: (code: string) =>
-    api<{ organization: Organization; role: OrgRole }>('/orgs/join', { method: 'POST', body: json({ code }) }),
   get: (orgId: string) =>
     api<{ organization: Organization & { _count: { memberships: number; projects: number } }; role: OrgRole }>(`/orgs/${orgId}`),
   update: (orgId: string, input: Partial<Pick<Organization, 'name' | 'type' | 'logoUrl'>>) =>
@@ -17,10 +15,10 @@ export const orgsApi = {
   setRole: (orgId: string, userId: string, role: OrgRole) =>
     api<{ member: OrgMember }>(`/orgs/${orgId}/members/${userId}`, { method: 'PATCH', body: json({ role }) }),
   removeMember: (orgId: string, userId: string) => api<void>(`/orgs/${orgId}/members/${userId}`, { method: 'DELETE' }),
-  invites: (orgId: string) => api<{ invites: Invite[] }>(`/orgs/${orgId}/invites`),
-  createInvite: (orgId: string, input: { role: OrgRole; email?: string; expiresInDays?: number; maxUses?: number }) =>
-    api<{ invite: Invite; code: string }>(`/orgs/${orgId}/invites`, { method: 'POST', body: json(input) }),
-  revokeInvite: (orgId: string, inviteId: string) => api<void>(`/orgs/${orgId}/invites/${inviteId}`, { method: 'DELETE' }),
+  addMember: (orgId: string, input: { name: string; email: string; role: OrgRole }) =>
+    api<AddMemberResult>(`/orgs/${orgId}/members`, { method: 'POST', body: json(input) }),
+  resendSetup: (orgId: string, userId: string) =>
+    api<{ emailSent: boolean; setupLink: string | null }>(`/orgs/${orgId}/members/${userId}/resend-setup`, { method: 'POST' }),
   audit: (orgId: string) =>
     api<{ entries: AuditEntry[]; integrity: { valid: boolean; entries: number; brokenAt: number | null } }>(`/orgs/${orgId}/audit`),
   projectTeam: (projectId: string) => api<ProjectTeam>(`/projects/${projectId}/members`),

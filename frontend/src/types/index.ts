@@ -146,7 +146,7 @@ export type Report = {
 export type OrgRole = 'OWNER' | 'ADMIN' | 'PROGRAM_MANAGER' | 'VERIFIER' | 'FIELD_WORKER' | 'VIEWER';
 export type OrgType = 'NGO' | 'CSR' | 'GOVERNMENT' | 'SOCIAL_ENTERPRISE' | 'OTHER';
 export type Permission =
-  | 'org.settings' | 'org.members.view' | 'org.members.manage' | 'org.invites.manage' | 'audit.view'
+  | 'org.settings' | 'org.members.view' | 'org.members.manage' | 'audit.view'
   | 'project.create' | 'project.edit' | 'project.delete' | 'project.members.manage'
   | 'evidence.upload' | 'evidence.analyze' | 'evidence.curate' | 'evidence.delete' | 'evidence.review'
   | 'insight.generate' | 'comparison.create' | 'comparison.delete' | 'report.create' | 'report.delete' | 'story.create';
@@ -157,12 +157,22 @@ export type Membership = { organization: Organization; role: OrgRole; permission
 export type Session = { user: User; memberships: Membership[] };
 export type OrgMember = {
   role: OrgRole; status: 'ACTIVE' | 'SUSPENDED'; createdAt: string; assignedProjects: number;
+  /** True until the person has opened their setup link and chosen a password. */
+  pendingSetup: boolean;
   user: { id: string; name: string; email: string };
 };
-export type InviteStatus = 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED';
-export type Invite = {
-  id: string; codeHint: string; role: OrgRole; email?: string | null; expiresAt: string; maxUses: number;
-  usedCount: number; revokedAt?: string | null; createdAt: string; status: InviteStatus;
+export type AddMemberResult = { member: OrgMember; newAccount: boolean; emailSent: boolean; setupLink: string | null };
+export type SetupPreview = { name: string; email: string; organization: string | null; role: OrgRole | null };
+export type Target = {
+  id: string; projectId: string; label: string; unit: string; targetCount: number; dueDate?: string | null; createdAt: string;
+  tallies: Tally[];
+  progress: { recorded: number; confirmed: number; withEvidence: number; recordedPercent: number; confirmedPercent: number; batches: number };
+};
+export type Tally = {
+  id: string; targetId: string; count: number; recordedAt: string; note?: string | null; recordedById?: string | null;
+  reviewStatus: ReviewStatus; reviewedAt?: string | null;
+  site?: { id: string; name: string } | null;
+  eventCluster?: { id: string; assetCount: number; representativeIds: string[]; startedAt: string } | null;
 };
 export type AuditEntry = {
   id: string; seq: number; actorId?: string | null; actorName?: string | null; action: string; entityType: string;

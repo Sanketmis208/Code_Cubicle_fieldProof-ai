@@ -1,8 +1,8 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Building2, Check, ChevronsUpDown, KeyRound, Plus } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CreateOrgDialog, JoinOrgDialog } from "@/components/org-dialogs";
+import { CreateOrgDialog } from "@/components/org-dialogs";
 import { useAuth } from "@/contexts/auth-context";
 import { ROLE_INFO } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ function initials(name: string) {
 export function OrgSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   const { memberships, membership, switchOrganization } = useAuth();
   const navigate = useNavigate();
-  const [dialog, setDialog] = useState<"create" | "join" | null>(null);
+  const [dialog, setDialog] = useState<"create" | null>(null);
   if (!membership) return null;
   const { organization, role } = membership;
   const itemClass = "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-fog";
@@ -60,14 +60,10 @@ export function OrgSwitcher({ onNavigate }: { onNavigate?: () => void }) {
             <DropdownMenu.Item onSelect={() => setDialog("create")} className={itemClass}>
               <Plus size={16} /> Create organization
             </DropdownMenu.Item>
-            <DropdownMenu.Item onSelect={() => setDialog("join")} className={itemClass}>
-              <KeyRound size={16} /> Join with a code
-            </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
       <CreateOrgDialog open={dialog === "create"} onOpenChange={(open) => setDialog(open ? "create" : null)} />
-      <JoinOrgDialog open={dialog === "join"} onOpenChange={(open) => setDialog(open ? "join" : null)} />
     </>
   );
 }

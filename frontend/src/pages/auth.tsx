@@ -3,7 +3,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { authApi } from "@/api/auth";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ const signupSchema = z.object({
   name: z.string().min(2, "Enter your full name"),
   email: z.email("Enter a valid email"),
   organizationName: z.string().optional(),
-  inviteCode: z.string().trim().optional(),
   password: z
     .string()
     .min(8, "Use at least 8 characters")
@@ -65,26 +64,22 @@ export function SignInPage() {
       toast.error(error instanceof Error ? error.message : "Sign in failed");
     }
   };
-  return <div className="rounded-[30px] border border-black/10 bg-white/65 p-6 shadow-[0_30px_90px_rgba(11,23,20,.09)] backdrop-blur-xl sm:p-8"><p className="eyebrow text-emerald-700">Welcome back / 01</p><h1 className="mt-4 font-display text-4xl font-extrabold uppercase leading-[.95] tracking-[-.05em]">Enter your<br/>evidence workspace.</h1><p className="mt-4 text-sm leading-6 text-stone">Continue building a credible record of your impact.</p><form className="mt-8 space-y-5" onSubmit={handleSubmit(submit)}><div><label className="label" htmlFor="email">Work email</label><input id="email" type="email" autoComplete="email" className="field" placeholder="you@organization.org" {...register("email")} />{errors.email && <p className="mt-1.5 text-xs text-red-600">{errors.email.message}</p>}</div><PasswordInput registration={register("password")} error={errors.password?.message} placeholder="••••••••" /><Button className="w-full rounded-full" size="lg" disabled={isSubmitting}>{isSubmitting && <Loader2 className="animate-spin" size={17} />}Sign in</Button></form><p className="mt-7 text-center text-sm text-stone">New to FieldProof? <Link className="font-bold text-ink underline decoration-lime decoration-2 underline-offset-4" to="/sign-up">Create an account</Link></p></div>;
+  return <div className="rounded-[30px] border border-black/10 bg-white/65 p-6 shadow-[0_30px_90px_rgba(11,23,20,.09)] backdrop-blur-xl sm:p-8"><p className="eyebrow text-emerald-700">Welcome back / 01</p><h1 className="mt-4 font-display text-4xl font-extrabold uppercase leading-[.95] tracking-[-.05em]">Enter your<br/>evidence workspace.</h1><p className="mt-4 text-sm leading-6 text-stone">Continue building a credible record of your impact.</p><form className="mt-8 space-y-5" onSubmit={handleSubmit(submit)}><div><label className="label" htmlFor="email">Work email</label><input id="email" type="email" autoComplete="email" className="field" placeholder="you@organization.org" {...register("email")} />{errors.email && <p className="mt-1.5 text-xs text-red-600">{errors.email.message}</p>}</div><PasswordInput registration={register("password")} error={errors.password?.message} placeholder="••••••••" /><div className="flex justify-end"><Link to="/forgot-password" className="text-xs font-semibold text-stone hover:text-ink">Forgot password?</Link></div><Button className="w-full rounded-full" size="lg" disabled={isSubmitting}>{isSubmitting && <Loader2 className="animate-spin" size={17} />}Sign in</Button></form><p className="mt-7 text-center text-sm text-stone">New to FieldProof? <Link className="font-bold text-ink underline decoration-lime decoration-2 underline-offset-4" to="/sign-up">Create an account</Link></p></div>;
 }
 
 export function SignUpPage() {
   const { setSession } = useAuth();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const invitedWith = params.get("invite") ?? "";
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<SignupInput>({ resolver: zodResolver(signupSchema), defaultValues: { inviteCode: invitedWith } });
-  const joining = Boolean(watch("inviteCode")?.trim());
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<SignupInput>({ resolver: zodResolver(signupSchema) });
   const submit = async (input: SignupInput) => {
     try {
-      const session = await authApi.register({ ...input, inviteCode: input.inviteCode || undefined, organizationName: joining ? undefined : input.organizationName });
+      const session = await authApi.register(input);
       setSession(session);
-      const joined = session.memberships[0];
-      toast.success(input.inviteCode && joined ? `You joined ${joined.organization.name}` : "Your workspace is ready");
+      toast.success("Your workspace is ready");
       navigate("/app");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Account creation failed");
     }
   };
-  return <div className="rounded-[30px] border border-black/10 bg-white/65 p-6 shadow-[0_30px_90px_rgba(11,23,20,.09)] backdrop-blur-xl sm:p-8"><p className="eyebrow text-emerald-700">Start documenting / 01</p><h1 className="mt-4 font-display text-4xl font-extrabold uppercase leading-[.95] tracking-[-.05em]">Create your<br/>evidence layer.</h1><p className="mt-4 text-sm leading-6 text-stone">Your first project is only a minute away.</p><form className="mt-8 space-y-4" onSubmit={handleSubmit(submit)}><div><label className="label" htmlFor="name">Full name</label><input id="name" autoComplete="name" className="field" placeholder="Aarav Mehta" {...register("name")} />{errors.name && <p className="mt-1.5 text-xs text-red-600">{errors.name.message}</p>}</div><div><label className="label" htmlFor="invite">Invite code <span className="normal-case tracking-normal text-stone/60">(if your team sent one)</span></label><input id="invite" autoComplete="off" autoCapitalize="characters" spellCheck={false} className="field font-mono uppercase tracking-[.18em]" placeholder="ABCD-2345" {...register("inviteCode")} /></div>{!joining && <div><label className="label" htmlFor="org">Organization <span className="normal-case tracking-normal text-stone/60">(optional)</span></label><input id="org" autoComplete="organization" className="field" placeholder="Green Earth Foundation" {...register("organizationName")} /><p className="mt-1.5 text-xs text-stone">You become its owner and can invite your team.</p></div>}<div><label className="label" htmlFor="email">Work email</label><input id="email" type="email" autoComplete="email" className="field" placeholder="you@organization.org" {...register("email")} />{errors.email && <p className="mt-1.5 text-xs text-red-600">{errors.email.message}</p>}</div><PasswordInput registration={register("password")} error={errors.password?.message} placeholder="8+ characters" /><Button className="w-full rounded-full" size="lg" disabled={isSubmitting}>{isSubmitting && <Loader2 className="animate-spin" size={17} />}{joining ? "Create account and join" : "Create account"}</Button></form><p className="mt-6 text-center text-sm text-stone">Already have an account? <Link className="font-bold text-ink underline decoration-lime decoration-2 underline-offset-4" to="/sign-in">Sign in</Link></p></div>;
+  return <div className="rounded-[30px] border border-black/10 bg-white/65 p-6 shadow-[0_30px_90px_rgba(11,23,20,.09)] backdrop-blur-xl sm:p-8"><p className="eyebrow text-emerald-700">Start documenting / 01</p><h1 className="mt-4 font-display text-4xl font-extrabold uppercase leading-[.95] tracking-[-.05em]">Create your<br/>evidence layer.</h1><p className="mt-4 text-sm leading-6 text-stone">Your first project is only a minute away.</p><form className="mt-8 space-y-4" onSubmit={handleSubmit(submit)}><div><label className="label" htmlFor="name">Full name</label><input id="name" autoComplete="name" className="field" placeholder="Aarav Mehta" {...register("name")} />{errors.name && <p className="mt-1.5 text-xs text-red-600">{errors.name.message}</p>}</div><div><label className="label" htmlFor="org">Organization <span className="normal-case tracking-normal text-stone/60">(optional)</span></label><input id="org" autoComplete="organization" className="field" placeholder="Green Earth Foundation" {...register("organizationName")} /><p className="mt-1.5 text-xs text-stone">You become its owner and add your team by email. Joining an existing team? Ask its admin to add you instead.</p></div><div><label className="label" htmlFor="email">Work email</label><input id="email" type="email" autoComplete="email" className="field" placeholder="you@organization.org" {...register("email")} />{errors.email && <p className="mt-1.5 text-xs text-red-600">{errors.email.message}</p>}</div><PasswordInput registration={register("password")} error={errors.password?.message} placeholder="8+ characters" /><Button className="w-full rounded-full" size="lg" disabled={isSubmitting}>{isSubmitting && <Loader2 className="animate-spin" size={17} />}Create account</Button></form><p className="mt-6 text-center text-sm text-stone">Already have an account? <Link className="font-bold text-ink underline decoration-lime decoration-2 underline-offset-4" to="/sign-in">Sign in</Link></p></div>;
 }

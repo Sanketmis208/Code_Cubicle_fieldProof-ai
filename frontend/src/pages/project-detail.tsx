@@ -33,12 +33,15 @@ import { calendarDay, cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { ProjectTeam } from "@/components/project-team";
 import { ProjectSites } from "@/components/project-sites";
+import { ProjectTargets } from "@/components/project-targets";
+import { Reveal } from "@/components/motion";
 
-type Tab = "overview" | "evidence" | "timeline" | "sites" | "comparisons" | "reports" | "team";
+type Tab = "overview" | "evidence" | "timeline" | "targets" | "sites" | "comparisons" | "reports" | "team";
 const tabs: [Tab, string][] = [
   ["overview", "Overview"],
   ["evidence", "Evidence"],
   ["timeline", "Timeline"],
+  ["targets", "Targets"],
   ["sites", "Sites"],
   ["comparisons", "Comparisons"],
   ["reports", "Reports"],
@@ -401,9 +404,9 @@ export function ProjectDetailPage() {
                 </Button>}
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {evidence.map((asset) => (
+                {evidence.map((asset, index) => (
+                  <Reveal key={asset.id} index={index}>
                   <EvidenceCard
-                    key={asset.id}
                     asset={asset}
                     onOpen={() => setSelected(asset)}
                     onToggle={() => setSelected(asset)}
@@ -416,6 +419,7 @@ export function ProjectDetailPage() {
                       }
                     } : undefined}
                   />
+                  </Reveal>
                 ))}
               </div>
             </>
@@ -492,6 +496,7 @@ export function ProjectDetailPage() {
         )}
         {activeTab === "team" && <ProjectTeam projectId={p.id} />}
         {activeTab === "sites" && <ProjectSites projectId={p.id} />}
+        {activeTab === "targets" && <ProjectTargets projectId={p.id} />}
       </div>
       <UploadDialog
         open={uploadOpen}

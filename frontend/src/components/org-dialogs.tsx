@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useMutation } from "@tanstack/react-query";
-import { Building2, KeyRound, Loader2, X } from "lucide-react";
+import { Building2, Loader2, X } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -81,39 +81,6 @@ export function CreateOrgDialog({ open, onOpenChange }: { open: boolean; onOpenC
         </div>
         <Button className="w-full" disabled={name.trim().length < 2 || create.isPending}>
           {create.isPending && <Loader2 className="animate-spin" size={16} />}Create organization
-        </Button>
-      </form>
-    </Shell>
-  );
-}
-
-export function JoinOrgDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [code, setCode] = useState("");
-  const enter = useEnterOrganization();
-  const join = useMutation({
-    mutationFn: () => orgsApi.join(code),
-    onSuccess: async ({ organization }) => {
-      toast.success(`You joined ${organization.name}`);
-      onOpenChange(false);
-      setCode("");
-      await enter(organization.id);
-    },
-    onError: (error) => toast.error(error.message),
-  });
-  const ready = code.replace(/[^a-z0-9]/gi, "").length >= 8;
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (ready) join.mutate();
-  };
-  return (
-    <Shell open={open} onOpenChange={onOpenChange} icon={<KeyRound size={18} />} title="Join with an invite code" description="Ask an owner or admin of the organization for a code. Codes are single-use unless they say otherwise.">
-      <form className="mt-6 space-y-4" onSubmit={submit}>
-        <div>
-          <label className="label" htmlFor="invite-code">Invite code</label>
-          <input id="invite-code" className="field text-center font-mono text-lg uppercase tracking-[.3em]" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="ABCD-2345" maxLength={20} autoComplete="off" spellCheck={false} autoFocus />
-        </div>
-        <Button className="w-full" disabled={!ready || join.isPending}>
-          {join.isPending && <Loader2 className="animate-spin" size={16} />}Join organization
         </Button>
       </form>
     </Shell>

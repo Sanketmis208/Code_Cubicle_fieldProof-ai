@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { addProjectMember, createProject, createSite, deleteSite, listSites, deleteProject, generateProjectInsight, getProject, listProjectMembers, listProjects, removeProjectMember, updateProject } from '../controllers/project.controller.js';
+import { addProjectMember, createProject, listProjectEvents, createSite, deleteSite, listSites, deleteProject, generateProjectInsight, getProject, listProjectMembers, listProjects, removeProjectMember, updateProject } from '../controllers/project.controller.js';
 import { projectMemberParamsSchema, projectMemberSchema } from '../validators/org.validators.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/async-handler.js';
@@ -19,3 +19,4 @@ projectRouter.delete('/:id/members/:userId', validate(projectMemberParamsSchema)
 projectRouter.get('/:id/sites', validate(projectIdSchema), asyncHandler(listSites));
 projectRouter.post('/:id/sites', validate(createSiteSchema), asyncHandler(createSite));
 projectRouter.delete('/:id/sites/:siteId', validate(siteParamsSchema), asyncHandler(deleteSite));
+projectRouter.get('/:id/events', validate(projectIdSchema), asyncHandler(listProjectEvents));

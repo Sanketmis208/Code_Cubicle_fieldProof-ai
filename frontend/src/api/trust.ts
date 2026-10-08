@@ -1,5 +1,5 @@
 import { API_URL, api, organizationHeaders, toApiError } from './client';
-import type { Asset, ClaimResult, DerivedAsset, Passport, PublicPassport, ReviewItem, ReviewStatus, Site, StoryKind } from '@/types';
+import type { Asset, ClaimResult, DerivedAsset, Passport, PublicPassport, ReviewItem, ReviewStatus, Site, StoryKind, Tally, Target } from '@/types';
 
 const json = (body: unknown) => JSON.stringify(body);
 type Decision = Exclude<ReviewStatus, 'PENDING'>;
@@ -33,6 +33,24 @@ export const storyApi = {
   list: (projectId?: string) => api<{ derived: DerivedAsset[] }>(`/story${projectId ? `?projectId=${projectId}` : ''}`),
   compose: (input: { kind: StoryKind; assetIds: string[]; headline: string; subline?: string; blurFaces: boolean }) =>
     api<{ derived: DerivedAsset; passportUrl: string }>('/story', { method: 'POST', body: json(input) }),
+};
+
+export const targetsApi = {
+  list: (projectId: string) => api<{ targets: Target[] }>(`/projects/${projectId}/targets`),
+  create: (projectId: string, input: { label: string; unit: string; targetCount: number; dueDate?: string | null }) =>
+    api<{ target: Target }>(`/projects/${projectId}/targets`, { method: 'POST', body: json(input) }),
+  remove: (projectId: string, targetId: string) => api<void>(`/projects/${projectId}/targets/${targetId}`, { method: 'DELETE' }),
+  addTally: (targetId: string, input: { count: number; recordedAt?: string; siteId?: string; eventClusterId?: string; note?: string }) =>
+    api<{ tally: Tally; target: Target }>(`/targets/${targetId}/tallies`, { method: 'POST', body: json(input) }),
+  reviewTally: (tallyId: string, decision: 'APPROVED' | 'REJECTED') =>
+    api<{ tally: Tally; target: Target }>(`/targets/tallies/${tallyId}/review`, { method: 'POST', body: json({ decision }) }),
+  events: (projectId: string) =>
+    api<{ events: Array<{ id: string; startedAt: string; endedAt: string; assetCount: number; representativeIds: string[]; label?: string | null }> }>(`/projects/${projectId}/events`),
+};
+
+export const assistantApi = {
+  chat: (messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+    api<{ reply: string }>('/assistant/chat', { method: 'POST', body: json({ messages }) }),
 };
 
 export const claimsApi = {

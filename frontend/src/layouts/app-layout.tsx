@@ -27,6 +27,8 @@ import { authApi } from "@/api/auth";
 import { cn } from "@/lib/utils";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { NoOrganizationPage } from "@/pages/no-organization";
+import { AssistantWidget } from "@/components/assistant-widget";
+import { AnimatePresence, motion } from "framer-motion";
 import { ROLE_INFO } from "@/lib/roles";
 import type { Permission } from "@/types";
 
@@ -225,10 +227,20 @@ export function AppLayout() {
           </div>
         </header>
         <main className="relative p-4 md:p-8 lg:p-10">
-          <div key={location.pathname} className="route-enter mx-auto max-w-[1560px]">
-            {membership ? <Outlet /> : <NoOrganizationPage />}
-          </div>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="mx-auto max-w-[1560px]"
+            >
+              {membership ? <Outlet /> : <NoOrganizationPage />}
+            </motion.div>
+          </AnimatePresence>
         </main>
+        <AssistantWidget />
       </div>
     </div>
   );

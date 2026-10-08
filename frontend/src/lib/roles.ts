@@ -4,7 +4,7 @@ export const ROLES: OrgRole[] = ['OWNER', 'ADMIN', 'PROGRAM_MANAGER', 'VERIFIER'
 
 export const ROLE_INFO: Record<OrgRole, { label: string; description: string; tone: string }> = {
   OWNER: { label: 'Owner', description: 'Full control, including other owners and the organization itself.', tone: 'bg-ink text-lime' },
-  ADMIN: { label: 'Admin', description: 'Runs the workspace: members, invites, every project and the audit log.', tone: 'bg-emerald-900 text-white' },
+  ADMIN: { label: 'Admin', description: 'Runs the workspace: members, every project and the audit log.', tone: 'bg-emerald-900 text-white' },
   PROGRAM_MANAGER: { label: 'Program manager', description: 'Creates projects, assigns the team, generates comparisons and reports.', tone: 'bg-emerald-100 text-emerald-900' },
   VERIFIER: { label: 'Verifier', description: 'Reviews evidence on assigned projects; cannot upload, so never checks their own work.', tone: 'bg-sky-100 text-sky-900' },
   FIELD_WORKER: { label: 'Field worker', description: 'Uploads evidence to assigned projects only.', tone: 'bg-amber-100 text-amber-900' },

@@ -4,6 +4,7 @@ import { AppLayout } from "@/layouts/app-layout";
 import { AuthLayout } from "@/layouts/auth-layout";
 import { LandingPage } from "@/pages/landing";
 import { SignInPage, SignUpPage } from "@/pages/auth";
+import { ForgotPasswordPage, SetupPage } from "@/pages/setup";
 import { DashboardPage } from "@/pages/dashboard";
 import { ProjectsPage } from "@/pages/projects";
 import { ProjectEditorPage } from "@/pages/project-editor";
@@ -27,6 +28,8 @@ export default function App() {
       <Route element={<AuthLayout />}>
         <Route path="sign-in" element={<SignInPage />} />
         <Route path="sign-up" element={<SignUpPage />} />
+        <Route path="setup/:token" element={<SetupPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
       </Route>
       {/* Public: what a QR code on a campaign card opens. */}
       <Route path="passport/:token" element={<PublicPassportPage />} />

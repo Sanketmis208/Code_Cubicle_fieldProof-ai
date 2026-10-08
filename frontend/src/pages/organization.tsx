@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import {
-  Ban, Building2, Check, Copy, KeyRound, Link2, Loader2, LogOut, ScrollText, ShieldAlert, ShieldCheck, UserMinus, Users,
+  Building2, Check, Copy, Loader2, LogOut, Mail, MailCheck, ScrollText, Send, ShieldAlert, ShieldCheck, UserMinus, UserPlus, Users,
 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import toast from "react-hot-toast";
 import { orgsApi } from "@/api/orgs";
 import { EmptyState } from "@/components/empty-state";
@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { canManageRole, grantableRoles, ORG_TYPES, ROLE_INFO, ROLES } from "@/lib/roles";
 import { cn } from "@/lib/utils";
-import type { AuditEntry, Invite, InviteStatus, OrgMember, OrgRole, OrgType } from "@/types";
+import type { AuditEntry, OrgMember, OrgRole, OrgType } from "@/types";
 
-type Tab = "members" | "invites" | "settings" | "audit";
+type Tab = "members" | "settings" | "audit";
 
 export function RoleBadge({ role }: { role: OrgRole }) {
   return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold", ROLE_INFO[role].tone)}>{ROLE_INFO[role].label}</span>;
@@ -30,7 +30,6 @@ export function OrganizationPage() {
   const details = useQuery({ queryKey: ["org", orgId], queryFn: () => orgsApi.get(orgId), enabled: Boolean(orgId) });
   const tabs: Array<{ key: Tab; label: string; visible: boolean }> = [
     { key: "members", label: "Members", visible: can("org.members.view") },
-    { key: "invites", label: "Invites", visible: can("org.invites.manage") },
     { key: "settings", label: "Settings", visible: can("org.settings") },
     { key: "audit", label: "Audit log", visible: can("audit.view") },
   ];
@@ -68,7 +67,6 @@ export function OrganizationPage() {
           </div>
           <div role="tabpanel">
             {activeTab === "members" && <MembersTab orgId={orgId} />}
-            {activeTab === "invites" && <InvitesTab orgId={orgId} orgName={membership.organization.name} />}
             {activeTab === "settings" && <SettingsTab orgId={orgId} name={membership.organization.name} type={membership.organization.type} />}
             {activeTab === "audit" && <AuditTab orgId={orgId} />}
           </div>
@@ -89,6 +87,14 @@ function MembersTab({ orgId }: { orgId: string }) {
     onSuccess: (_result, { member, role }) => { toast.success(`${member.user.name} is now ${ROLE_INFO[role].label.toLowerCase()}`); refresh(); },
     onError: (error) => { toast.error(error.message); refresh(); },
   });
+  const resend = useMutation({
+    mutationFn: (member: OrgMember) => orgsApi.resendSetup(orgId, member.user.id),
+    onSuccess: ({ emailSent, setupLink }) => {
+      if (emailSent) toast.success("A new setup email is on its way");
+      else if (setupLink) void navigator.clipboard.writeText(setupLink).then(() => toast.success("Email is not configured; the setup link was copied for you to pass on", { duration: 7000 }));
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const remove = useMutation({
     mutationFn: (member: OrgMember) => orgsApi.removeMember(orgId, member.user.id),
     onSuccess: async (_result, member) => {
@@ -102,6 +108,8 @@ function MembersTab({ orgId }: { orgId: string }) {
   if (isError || !data) return <div className="card p-8 text-center text-sm text-red-600">Members could not be loaded.</div>;
   const manage = can("org.members.manage");
   return (
+    <div className="space-y-5">
+    {manage && <AddMemberForm orgId={orgId} onAdded={refresh} />}
     <div className="card overflow-hidden">
       <div className="hidden grid-cols-[1.6fr_1fr_.7fr_.8fr_auto] gap-4 border-b border-black/[.06] px-5 py-3 text-[10px] font-bold uppercase tracking-[.18em] text-stone md:grid">
         <span>Member</span><span>Role</span><span>Projects</span><span>Joined</span><span className="w-24" />
@@ -116,7 +124,7 @@ function MembersTab({ orgId }: { orgId: string }) {
               <div className="flex min-w-0 items-center gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ink text-xs font-bold text-lime">{initials(member.user.name)}</span>
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{member.user.name}{self && <span className="ml-2 text-xs font-normal text-stone">(you)</span>}</p>
+                  <p className="truncate font-semibold">{member.user.name}{self && <span className="ml-2 text-xs font-normal text-stone">(you)</span>}{member.pendingSetup && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">Awaiting setup</span>}</p>
                   <p className="truncate text-sm text-stone">{member.user.email}</p>
                 </div>
               </div>
@@ -131,7 +139,11 @@ function MembersTab({ orgId }: { orgId: string }) {
               <p className="text-sm text-stone">{["OWNER", "ADMIN", "VIEWER"].includes(member.role) ? "All projects" : `${member.assignedProjects} assigned`}</p>
               <p className="text-sm text-stone">{format(new Date(member.createdAt), "d MMM yyyy")}</p>
               <div className="w-24 md:text-right">
-                {self ? (
+                {member.pendingSetup && manage && !self ? (
+                  <Button size="sm" variant="ghost" disabled={resend.isPending} title="Send a fresh setup link" onClick={() => resend.mutate(member)}>
+                    <Send size={15} />Resend
+                  </Button>
+                ) : self ? (
                   <Button size="sm" variant="ghost" disabled={remove.isPending}
                     onClick={() => window.confirm("Leave this organization? You will lose access to its projects immediately.") && remove.mutate(member)}>
                     <LogOut size={15} />Leave
@@ -148,104 +160,64 @@ function MembersTab({ orgId }: { orgId: string }) {
         })}
       </ul>
     </div>
+    </div>
   );
 }
 
-const STATUS_STYLE: Record<InviteStatus, string> = {
-  ACTIVE: "bg-emerald-50 text-emerald-700", USED: "bg-slate-100 text-slate-600", EXPIRED: "bg-amber-50 text-amber-700", REVOKED: "bg-red-50 text-red-700",
-};
-
-function InvitesTab({ orgId, orgName }: { orgId: string; orgName: string }) {
+/** Adds a teammate by email. The system creates the account and emails a one-time link to choose a password. */
+function AddMemberForm({ orgId, onAdded }: { orgId: string; onAdded: () => void }) {
   const { membership } = useAuth();
-  const qc = useQueryClient();
   const roles = grantableRoles(membership!.role).filter((role) => role !== "OWNER");
-  const [role, setRole] = useState<OrgRole>(roles.includes("FIELD_WORKER") ? "FIELD_WORKER" : roles[0]!);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [expiresInDays, setExpiresInDays] = useState(7);
-  const [maxUses, setMaxUses] = useState(1);
-  const [issued, setIssued] = useState<{ code: string; invite: Invite } | null>(null);
-  const { data, isLoading } = useQuery({ queryKey: ["org-invites", orgId], queryFn: () => orgsApi.invites(orgId) });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ["org-invites", orgId] });
-  const create = useMutation({
-    mutationFn: () => orgsApi.createInvite(orgId, { role, email: email.trim() || undefined, expiresInDays, maxUses: email.trim() ? 1 : maxUses }),
-    onSuccess: (result) => { setIssued(result); setEmail(""); refresh(); },
+  const [role, setRole] = useState<OrgRole>(roles.includes("FIELD_WORKER") ? "FIELD_WORKER" : roles[0]!);
+  const [result, setResult] = useState<{ email: string; emailSent: boolean; setupLink: string | null; newAccount: boolean } | null>(null);
+  const add = useMutation({
+    mutationFn: () => orgsApi.addMember(orgId, { name: name.trim(), email: email.trim(), role }),
+    onSuccess: (data) => {
+      setResult({ email: email.trim(), emailSent: data.emailSent, setupLink: data.setupLink, newAccount: data.newAccount });
+      toast.success(data.newAccount ? `${name.trim()} added` : `${email.trim()} added to the organization`);
+      setName(""); setEmail("");
+      onAdded();
+    },
     onError: (error) => toast.error(error.message),
   });
-  const revoke = useMutation({
-    mutationFn: (invite: Invite) => orgsApi.revokeInvite(orgId, invite.id),
-    onSuccess: () => { toast.success("Invite revoked"); refresh(); },
-    onError: (error) => toast.error(error.message),
-  });
-  const link = issued ? `${window.location.origin}/sign-up?invite=${encodeURIComponent(issued.code)}` : "";
-  const copy = (text: string, label: string) => navigator.clipboard.writeText(text).then(() => toast.success(`${label} copied`), () => toast.error("Copy failed; select the text instead"));
-  const submit = (event: FormEvent) => { event.preventDefault(); create.mutate(); };
+  const valid = name.trim().length >= 2 && /\S+@\S+\.\S+/.test(email.trim());
   return (
-    <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
-      <div className="space-y-6">
-        <form className="card space-y-4 p-6" onSubmit={submit}>
-          <div className="flex items-center gap-2"><KeyRound size={18} /><h2 className="font-display text-lg font-bold">New invite code</h2></div>
-          <div>
-            <label className="label" htmlFor="invite-role">Role</label>
-            <select id="invite-role" className="field" value={role} onChange={(event) => setRole(event.target.value as OrgRole)}>
-              {roles.map((item) => <option key={item} value={item}>{ROLE_INFO[item].label}</option>)}
-            </select>
-            <p className="mt-1.5 text-xs text-stone">{ROLE_INFO[role].description}</p>
-          </div>
-          <div>
-            <label className="label" htmlFor="invite-email">Restrict to email <span className="normal-case tracking-normal text-stone/60">(optional)</span></label>
-            <input id="invite-email" type="email" className="field" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="volunteer@example.org" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label" htmlFor="invite-expiry">Expires in</label>
-              <select id="invite-expiry" className="field" value={expiresInDays} onChange={(event) => setExpiresInDays(Number(event.target.value))}>
-                {[1, 7, 14, 30].map((days) => <option key={days} value={days}>{days} day{days > 1 ? "s" : ""}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label" htmlFor="invite-uses">Uses</label>
-              <select id="invite-uses" className="field" value={email.trim() ? 1 : maxUses} disabled={Boolean(email.trim())} onChange={(event) => setMaxUses(Number(event.target.value))}>
-                {[1, 5, 25, 100].map((uses) => <option key={uses} value={uses}>{uses === 1 ? "Single use" : `Up to ${uses} people`}</option>)}
-              </select>
-            </div>
-          </div>
-          <Button className="w-full" disabled={create.isPending}>{create.isPending && <Loader2 size={16} className="animate-spin" />}Create invite code</Button>
-        </form>
-        {issued && (
-          <div className="card border-emerald-200 bg-emerald-50/70 p-6" aria-live="polite">
-            <p className="eyebrow text-emerald-800">Share this now — it is shown only once</p>
-            <p className="mt-4 select-all text-center font-mono text-3xl font-bold tracking-[.25em]">{issued.code}</p>
-            <p className="mt-3 text-center text-xs text-emerald-900/70">{ROLE_INFO[issued.invite.role].label} · expires {format(new Date(issued.invite.expiresAt), "d MMM yyyy")} · {issued.invite.maxUses === 1 ? "single use" : `${issued.invite.maxUses} uses`}</p>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              <Button type="button" variant="outline" onClick={() => copy(issued.code, "Code")}><Copy size={15} />Copy code</Button>
-              <Button type="button" variant="outline" onClick={() => copy(`Join ${orgName} on FieldProof: ${link}`, "Invite link")}><Link2 size={15} />Copy invite link</Button>
-            </div>
-          </div>
-        )}
+    <form className="card p-6" onSubmit={(event) => { event.preventDefault(); if (valid) add.mutate(); }}>
+      <div className="flex items-center gap-2"><UserPlus size={18} /><h2 className="font-display text-lg font-bold">Add a team member</h2></div>
+      <p className="mt-1 text-sm text-stone">They get an email with a one-time link to choose their password, then sign in on the web or the FieldProof app with this email.</p>
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1.2fr_.9fr_auto] md:items-end">
+        <div><label className="label" htmlFor="member-name">Name</label><input id="member-name" className="field" value={name} maxLength={80} onChange={(event) => setName(event.target.value)} placeholder="Sunita Devi" /></div>
+        <div><label className="label" htmlFor="member-email">Email</label><input id="member-email" type="email" className="field" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="sunita@greenroots.org" /></div>
+        <div>
+          <label className="label" htmlFor="member-role">Role</label>
+          <select id="member-role" className="field" value={role} onChange={(event) => setRole(event.target.value as OrgRole)}>
+            {roles.map((item) => <option key={item} value={item}>{ROLE_INFO[item].label}</option>)}
+          </select>
+        </div>
+        <Button disabled={!valid || add.isPending}>{add.isPending ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}Add and email</Button>
       </div>
-      <div className="card overflow-hidden">
-        <div className="border-b border-black/[.06] px-5 py-4"><h2 className="font-display text-lg font-bold">Issued invites</h2><p className="text-sm text-stone">Codes are stored hashed; only their last two characters are shown.</p></div>
-        {isLoading ? <div className="grid h-40 place-items-center"><Loader2 className="animate-spin text-stone" /></div> : !data?.invites.length ? (
-          <p className="px-5 py-10 text-center text-sm text-stone">No invites yet.</p>
-        ) : (
-          <ul className="divide-y divide-black/[.05]">
-            {data.invites.map((invite) => (
-              <li key={invite.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-                <span className="font-mono text-sm text-stone">••••-••{invite.codeHint}</span>
-                <RoleBadge role={invite.role} />
-                <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold", STATUS_STYLE[invite.status])}>{invite.status.toLowerCase()}</span>
-                <span className="min-w-0 flex-1 truncate text-xs text-stone">
-                  {invite.email ? `${invite.email} · ` : ""}{invite.usedCount}/{invite.maxUses} used · {invite.status === "ACTIVE" ? `expires ${formatDistanceToNow(new Date(invite.expiresAt), { addSuffix: true })}` : `created ${format(new Date(invite.createdAt), "d MMM")}`}
-                </span>
-                {invite.status === "ACTIVE" && (
-                  <Button size="sm" variant="ghost" className="text-red-600" disabled={revoke.isPending} onClick={() => revoke.mutate(invite)}><Ban size={14} />Revoke</Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+      <p className="mt-2 text-xs text-stone">{ROLE_INFO[role].description}</p>
+      {result && (
+        <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-900" aria-live="polite">
+          {result.emailSent ? (
+            <p className="flex items-center gap-2"><MailCheck size={16} />{result.newAccount ? `Setup email sent to ${result.email}. The link works once and expires in 7 days.` : `${result.email} already had a FieldProof account and has been added; they were notified by email.`}</p>
+          ) : result.setupLink ? (
+            <>
+              <p className="flex items-center gap-2 font-semibold"><Mail size={16} />Email is not configured on this server, so pass this setup link to {result.email} yourself:</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="min-w-0 flex-1 break-all rounded-lg bg-white px-3 py-2 text-xs">{result.setupLink}</code>
+                <Button type="button" size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(result.setupLink!).then(() => toast.success("Link copied"))}><Copy size={14} />Copy</Button>
+              </div>
+              <p className="mt-2 text-xs">Set SMTP_* in the server environment to send these automatically.</p>
+            </>
+          ) : (
+            <p className="flex items-center gap-2"><Check size={16} />{result.email} already had a FieldProof account and has been added.</p>
+          )}
+        </div>
+      )}
+    </form>
   );
 }
 
@@ -276,8 +248,9 @@ function SettingsTab({ orgId, name, type }: { orgId: string; name: string; type:
 
 const ACTION_LABEL: Record<string, string> = {
   "org.created": "created the organization", "org.updated": "updated organization details",
-  "invite.created": "created an invite", "invite.revoked": "revoked an invite",
+  "member.added": "added a member", "member.setup_resent": "re-sent a setup link",
   "member.joined": "joined", "member.left": "left the organization", "member.removed": "removed a member",
+  "target.created": "set a target", "target.deleted": "removed a target", "tally.recorded": "recorded a count", "tally.reviewed": "reviewed a count",
   "member.role_changed": "changed a member's role",
   "project.created": "created a project", "project.updated": "updated a project", "project.deleted": "deleted a project",
   "project.member_added": "assigned someone to a project", "project.member_removed": "unassigned someone from a project",
@@ -296,6 +269,8 @@ function auditDetail(entry: AuditEntry) {
   if (entry.action === "evidence.reviewed" && typeof meta.decision === "string")
     return `${meta.decision.toLowerCase().replace("_", " ")}${typeof meta.filename === "string" ? ` · ${meta.filename}` : ""}${meta.selfReviewed ? " · self-reviewed" : ""}`;
   if (entry.action === "story.created" && typeof meta.kind === "string") return meta.kind.toLowerCase().replace("_", " ");
+  if (entry.action === "member.added" && typeof meta.email === "string") return `${meta.email}${role(meta.role) ? ` · ${role(meta.role)}` : ""}`;
+  if (entry.action === "tally.recorded" && typeof meta.count === "number") return `${meta.count} · ${String(meta.target ?? "")}`;
   if (typeof meta.name === "string") return meta.name;
   if (typeof meta.title === "string") return meta.title;
   if (typeof meta.filename === "string") return meta.filename;

@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { StatusBadge } from "@/components/status-badge";
 import { cloudinaryThumbnail } from "@/lib/cloudinary";
 import { QrCode } from "@/components/qr-code";
+import { CountUp, Reveal } from "@/components/motion";
 
 function SkeletonCard() {
   return (
@@ -123,20 +124,21 @@ export function DashboardPage() {
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         {summaryLoading
           ? Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)
-          : stats.map(([value, label, Icon, color, to]) => (
+          : stats.map(([value, label, Icon, color, to], index) => (
+              <Reveal key={label} index={index}>
               <Link
                 to={to}
-                className="card p-5 transition hover:-translate-y-0.5 hover:shadow-soft"
-                key={label}
+                className="card block p-5 transition hover:-translate-y-0.5 hover:shadow-soft"
               >
                 <span
                   className={`grid size-10 place-items-center rounded-xl ${color}`}
                 >
                   <Icon size={19} />
                 </span>
-                <p className="mt-5 font-display text-3xl font-bold">{value}</p>
+                <p className="mt-5 font-display text-3xl font-bold"><CountUp value={value as number | string} /></p>
                 <p className="mt-1 text-xs text-stone">{label}</p>
               </Link>
+              </Reveal>
             ))}
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_1fr]">
